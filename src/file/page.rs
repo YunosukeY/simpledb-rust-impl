@@ -45,3 +45,53 @@ impl Page {
         str.as_bytes().len() + 1
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_int() {
+        let p = Page::from_bytes(&[0, 0, 0, 1, 255, 255, 255, 255, 0, 0, 0, 0]);
+        assert_eq!(p.get_int(0), 1);
+        assert_eq!(p.get_int(4), -1);
+        assert_eq!(p.get_int(8), 0);
+    }
+
+    #[test]
+    fn set_int() {
+        let mut p = Page::new(12);
+        p.set_int(0, 1);
+        p.set_int(4, -1);
+
+        assert_eq!(p.buf, [0, 0, 0, 1, 255, 255, 255, 255, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn get_bytes() {
+        let p = Page::from_bytes(&[0, 1, 2, 3, 0]);
+        assert_eq!(p.get_bytes(0), &[0, 1, 2, 3, 0]);
+        assert_eq!(p.get_bytes(2), &[2, 3, 0]);
+    }
+
+    #[test]
+    fn set_bytes() {
+        let mut p = Page::new(5);
+        p.set_bytes(1, &[1, 2, 3]);
+        assert_eq!(p.buf, [0, 1, 2, 3, 0]);
+    }
+
+    #[test]
+    fn get_string() {
+        let p = Page::from_bytes(&[0, 97, 98, 99, 0]);
+        assert_eq!(p.get_string(0), "\0abc\0");
+        assert_eq!(p.get_string(2), "bc\0");
+    }
+
+    #[test]
+    fn set_string() {
+        let mut p = Page::new(5);
+        p.set_string(1, "abc");
+        assert_eq!(p.buf, [0, 97, 98, 99, 0]);
+    }
+}

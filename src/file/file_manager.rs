@@ -99,3 +99,45 @@ impl FileManager {
         self.open_files.get(filename).unwrap()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read() {
+        let mut fm = FileManager::new(PathBuf::from("testdata"), 10);
+        let mut page = Page::new(fm.block_size() as usize);
+
+        let block = BlockId::new("testfile".to_string(), 1);
+        fm.read(block, &mut page);
+        assert_eq!(page.get_string(0), "klmnopqrst");
+    }
+
+    #[test]
+    fn write() {
+        let mut fm = FileManager::new(PathBuf::from("testdata"), 10);
+        let mut page = Page::new(fm.block_size() as usize);
+
+        let block = BlockId::new("tempfile1".to_string(), 1);
+        page.set_string(0, "klmnopqrst");
+        fm.write(block, &page);
+
+        assert_eq!(
+            std::fs::read_to_string("testdata/tempfile1").unwrap(),
+            "\0\0\0\0\0\0\0\0\0\0klmnopqrst"
+        );
+    }
+
+    #[test]
+    fn append() {
+        let mut fm = FileManager::new(PathBuf::from("testdata"), 10);
+
+        let block = fm.append("tempfile2");
+        assert_eq!(block, BlockId::new("tempfile2".to_string(), 0));
+        assert_eq!(
+            std::fs::read_to_string("testdata/tempfile2").unwrap(),
+            "\0\0\0\0\0\0\0\0\0\0"
+        );
+    }
+}
