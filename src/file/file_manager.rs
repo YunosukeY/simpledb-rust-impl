@@ -5,7 +5,7 @@ use std::{
     fs::{File, OpenOptions},
     os::unix::fs::FileExt,
     path::PathBuf,
-    sync::Mutex,
+    sync::{Mutex, MutexGuard},
 };
 
 pub struct FileManager {
@@ -62,18 +62,22 @@ impl FileManager {
         let file = self.get_file(filename).lock().unwrap();
         // `new_block_num` must be calculated after the file is locked.
         // `length()` can't be called here because it borrows immutably.
-        let new_block_num = file.metadata().unwrap().len() as u32 / block_size;
+        let new_block_num = FileManager::length_from_file(&file, block_size);
         let new_size = (new_block_num + 1) * block_size;
         file.set_len(new_size as u64).unwrap();
 
         BlockId::new(filename.to_string(), new_block_num)
     }
 
+    fn length_from_file(file: &MutexGuard<File>, block_size: u32) -> u32 {
+        file.metadata().unwrap().len() as u32 / block_size
+    }
+
     pub fn length(&mut self, filename: &str) -> u32 {
         let block_size = self.block_size;
 
         let file = self.get_file(filename).lock().unwrap();
-        file.metadata().unwrap().len() as u32 / block_size
+        FileManager::length_from_file(&file, block_size)
     }
 
     pub fn is_new(&self) -> bool {
