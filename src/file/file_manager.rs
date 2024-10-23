@@ -54,6 +54,7 @@ impl FileManager {
 
         let file = self.get_file(block.filename()).lock().unwrap();
         file.write_all_at(&page.buf, offset as u64).unwrap();
+        file.sync_all().unwrap();
     }
 
     pub fn append(&mut self, filename: &str) -> BlockId {
@@ -65,6 +66,7 @@ impl FileManager {
         let new_block_num = FileManager::length_from_file(&file, block_size);
         let new_size = (new_block_num + 1) * block_size;
         file.set_len(new_size as u64).unwrap();
+        file.sync_all().unwrap();
 
         BlockId::new(filename.to_string(), new_block_num)
     }
