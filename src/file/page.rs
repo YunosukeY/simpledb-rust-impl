@@ -3,8 +3,10 @@ pub struct Page {
 }
 
 impl Page {
-    pub fn new(size: usize) -> Page {
-        Page { buf: vec![0; size] }
+    pub fn new(size: i32) -> Page {
+        Page {
+            buf: vec![0; size as usize],
+        }
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Page {
@@ -13,36 +15,39 @@ impl Page {
         }
     }
 
-    pub fn get_int(&self, offset: usize) -> i32 {
-        let bytes = &self.buf[offset..offset + 4];
+    pub fn get_int(&self, offset: i32) -> i32 {
+        let ofs = offset as usize;
+        let bytes = &self.buf[ofs..ofs + 4];
         i32::from_be_bytes(bytes.try_into().unwrap())
     }
 
-    pub fn set_int(&mut self, offset: usize, value: i32) {
-        self.buf[offset..offset + 4].copy_from_slice(&value.to_be_bytes());
+    pub fn set_int(&mut self, offset: i32, value: i32) {
+        let ofs = offset as usize;
+        self.buf[ofs..ofs + 4].copy_from_slice(&value.to_be_bytes());
     }
 
-    pub fn get_bytes(&self, offset: usize) -> &[u8] {
-        &self.buf[offset..]
+    pub fn get_bytes(&self, offset: i32) -> &[u8] {
+        let ofs = offset as usize;
+        &self.buf[ofs..]
     }
 
-    pub fn set_bytes(&mut self, offset: usize, bytes: &[u8]) {
-        self.buf[offset..offset + bytes.len()].copy_from_slice(bytes);
+    pub fn set_bytes(&mut self, offset: i32, bytes: &[u8]) {
+        let ofs = offset as usize;
+        self.buf[ofs..ofs + bytes.len()].copy_from_slice(bytes);
     }
 
-    pub fn get_string(&self, offset: usize) -> String {
-        std::str::from_utf8(&self.buf[offset..])
-            .unwrap()
-            .to_string()
+    pub fn get_string(&self, offset: i32) -> String {
+        let ofs = offset as usize;
+        std::str::from_utf8(&self.buf[ofs..]).unwrap().to_string()
     }
 
-    pub fn set_string(&mut self, offset: usize, s: &str) {
+    pub fn set_string(&mut self, offset: i32, s: &str) {
         let bytes: &[u8] = s.as_bytes();
         self.set_bytes(offset, bytes);
     }
 
-    pub fn max_length(str: &str) -> usize {
-        str.as_bytes().len() + 1
+    pub fn max_length(str: &str) -> i32 {
+        str.as_bytes().len() as i32 + 1
     }
 }
 
