@@ -10,13 +10,13 @@ use std::{
 
 pub struct FileManager {
     db_directory: PathBuf,
-    block_size: u32,
+    block_size: i32,
     is_new: bool,
     open_files: HashMap<String, Mutex<File>>,
 }
 
 impl FileManager {
-    pub fn new(db_directory: PathBuf, block_size: u32) -> FileManager {
+    pub fn new(db_directory: PathBuf, block_size: i32) -> FileManager {
         let is_new = !db_directory.exists();
         // create directory if it doesn't exist
         if is_new {
@@ -71,11 +71,11 @@ impl FileManager {
         BlockId::new(filename.to_string(), new_block_num)
     }
 
-    fn length_from_file(file: &MutexGuard<File>, block_size: u32) -> u32 {
-        file.metadata().unwrap().len() as u32 / block_size
+    fn length_from_file(file: &MutexGuard<File>, block_size: i32) -> i32 {
+        file.metadata().unwrap().len() as i32 / block_size
     }
 
-    pub fn length(&mut self, filename: &str) -> u32 {
+    pub fn length(&mut self, filename: &str) -> i32 {
         let block_size = self.block_size;
 
         let file = self.get_file(filename).lock().unwrap();
@@ -86,7 +86,7 @@ impl FileManager {
         self.is_new
     }
 
-    pub fn block_size(&self) -> u32 {
+    pub fn block_size(&self) -> i32 {
         self.block_size
     }
 
@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn read() {
         let mut fm = FileManager::new(PathBuf::from("testdata"), 10);
-        let mut page = Page::new(fm.block_size() as usize);
+        let mut page = Page::new(fm.block_size());
 
         let block = BlockId::new("testfile".to_string(), 1);
         fm.read(block, &mut page);
@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn write() {
         let mut fm = FileManager::new(PathBuf::from("testdata"), 10);
-        let mut page = Page::new(fm.block_size() as usize);
+        let mut page = Page::new(fm.block_size());
 
         let block = BlockId::new("tempfile1".to_string(), 1);
         page.set_string(0, "klmnopqrst");

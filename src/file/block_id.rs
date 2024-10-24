@@ -1,11 +1,11 @@
 #[derive(Debug, Hash, Eq, PartialEq)]
 pub struct BlockId {
     filename: String,
-    block_num: u32,
+    block_num: i32,
 }
 
 impl BlockId {
-    pub fn new(filename: String, block_num: u32) -> BlockId {
+    pub fn new(filename: String, block_num: i32) -> BlockId {
         BlockId {
             filename,
             block_num,
@@ -16,7 +16,7 @@ impl BlockId {
         &self.filename
     }
 
-    pub fn block_num(&self) -> u32 {
+    pub fn block_num(&self) -> i32 {
         self.block_num
     }
 }
