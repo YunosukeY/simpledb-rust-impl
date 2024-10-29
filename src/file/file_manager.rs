@@ -20,7 +20,7 @@ impl FileManager {
         let is_new = !db_directory.exists();
         // create directory if it doesn't exist
         if is_new {
-            std::fs::create_dir(&db_directory).unwrap();
+            std::fs::create_dir_all(&db_directory).unwrap();
         }
 
         // delete all temp files
@@ -112,7 +112,7 @@ mod tests {
 
     #[test]
     fn read() {
-        let mut fm = FileManager::new(PathBuf::from("testdata"), 10);
+        let mut fm = FileManager::new(PathBuf::from("testdata/file/file_manager/read"), 10);
         let mut page = Page::new(fm.block_size());
 
         let block = BlockId::new("testfile".to_string(), 1);
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn write() {
-        let mut fm = FileManager::new(PathBuf::from("testdata"), 10);
+        let mut fm = FileManager::new(PathBuf::from("testdata/file/file_manager/write"), 10);
         let mut page = Page::new(fm.block_size());
 
         let block = BlockId::new("tempfile1".to_string(), 1);
@@ -130,19 +130,19 @@ mod tests {
         fm.write(block, &page);
 
         assert_eq!(
-            std::fs::read_to_string("testdata/tempfile1").unwrap(),
+            std::fs::read_to_string("testdata/file/file_manager/write/tempfile1").unwrap(),
             "\0\0\0\0\0\0\0\0\0\0klmnopqrst"
         );
     }
 
     #[test]
     fn append() {
-        let mut fm = FileManager::new(PathBuf::from("testdata"), 10);
+        let mut fm = FileManager::new(PathBuf::from("testdata/file/file_manager/append"), 10);
 
         let block = fm.append("tempfile2");
         assert_eq!(block, BlockId::new("tempfile2".to_string(), 0));
         assert_eq!(
-            std::fs::read_to_string("testdata/tempfile2").unwrap(),
+            std::fs::read_to_string("testdata/file/file_manager/append/tempfile2").unwrap(),
             "\0\0\0\0\0\0\0\0\0\0"
         );
     }
