@@ -24,6 +24,16 @@ jobs:
       - run: cargo check
   test:
     runs-on: ubuntu-24.04
+    # https://github.com/taiki-e/cargo-llvm-cov#continuous-integration
     steps:
       - uses: actions/checkout@v4
-      - run: cargo test -- --test-threads=1
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Generate code coverage
+        run: cargo llvm-cov --jobs 1 --all-features --workspace --codecov --output-path codecov.json
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: codecov.json
+          fail_ci_if_error: true
