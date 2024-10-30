@@ -1,5 +1,5 @@
-use crate::file::block_id::BlockId;
 use crate::file::page::Page;
+use crate::{file::block_id::BlockId, util::Result};
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
@@ -26,11 +26,17 @@ impl FileManager {
         // delete all temp files
         let temp_files = std::fs::read_dir(&db_directory).unwrap();
         for file in temp_files {
+            if file.is_err() {
+                continue;
+            }
             let file = file.unwrap();
-            let file_name = file.file_name();
-            let file_name = file_name.to_str().unwrap();
-            if file_name.starts_with("temp") {
-                std::fs::remove_file(file.path()).unwrap();
+
+            let file_name = file.file_name().into_string();
+            if file_name.is_err() {
+                continue;
+            }
+            if file_name.unwrap().starts_with("temp") {
+                std::fs::remove_file(file.path());
             }
         }
 
@@ -42,40 +48,42 @@ impl FileManager {
         }
     }
 
-    pub fn read(&mut self, block: BlockId, page: &mut Page) {
+    pub fn read(&mut self, block: BlockId, page: &mut Page) -> Result<()> {
         let offset = block.block_num() * self.block_size;
 
         let file = self.get_file(block.filename()).lock().unwrap();
-        file.read_exact_at(&mut page.buf, offset as u64).unwrap();
+        file.read_exact_at(&mut page.buf, offset as u64)?;
+        Ok(())
     }
 
-    pub fn write(&mut self, block: BlockId, page: &Page) {
+    pub fn write(&mut self, block: BlockId, page: &Page) -> Result<()> {
         let offset = block.block_num() * self.block_size;
 
         let file = self.get_file(block.filename()).lock().unwrap();
-        file.write_all_at(&page.buf, offset as u64).unwrap();
-        file.sync_all().unwrap();
+        file.write_all_at(&page.buf, offset as u64)?;
+        file.sync_all()?;
+        Ok(())
     }
 
-    pub fn append(&mut self, filename: &str) -> BlockId {
+    pub fn append(&mut self, filename: &str) -> Result<BlockId> {
         let block_size = self.block_size;
 
         let file = self.get_file(filename).lock().unwrap();
         // `new_block_num` must be calculated after the file is locked.
         // `length()` can't be called here because it borrows immutably.
-        let new_block_num = FileManager::length_from_file(&file, block_size);
+        let new_block_num = FileManager::length_from_file(&file, block_size)?;
         let new_size = (new_block_num + 1) * block_size;
-        file.set_len(new_size as u64).unwrap();
-        file.sync_all().unwrap();
+        file.set_len(new_size as u64)?;
+        file.sync_all()?;
 
-        BlockId::new(filename.to_string(), new_block_num)
+        Ok(BlockId::new(filename.to_string(), new_block_num))
     }
 
-    fn length_from_file(file: &MutexGuard<File>, block_size: i32) -> i32 {
-        file.metadata().unwrap().len() as i32 / block_size
+    fn length_from_file(file: &MutexGuard<File>, block_size: i32) -> Result<i32> {
+        Ok(file.metadata()?.len() as i32 / block_size)
     }
 
-    pub fn length(&mut self, filename: &str) -> i32 {
+    pub fn length(&mut self, filename: &str) -> Result<i32> {
         let block_size = self.block_size;
 
         let file = self.get_file(filename).lock().unwrap();
@@ -116,7 +124,7 @@ mod tests {
         let mut page = Page::new(fm.block_size());
 
         let block = BlockId::new("testfile".to_string(), 1);
-        fm.read(block, &mut page);
+        fm.read(block, &mut page).unwrap();
         assert_eq!(page.get_string(0).unwrap(), "klmnopqrst");
     }
 
@@ -127,7 +135,7 @@ mod tests {
 
         let block = BlockId::new("tempfile1".to_string(), 1);
         page.set_string(0, "klmnopqrst");
-        fm.write(block, &page);
+        fm.write(block, &page).unwrap();
 
         assert_eq!(
             std::fs::read_to_string("testdata/file/file_manager/write/tempfile1").unwrap(),
@@ -139,7 +147,7 @@ mod tests {
     fn append() {
         let mut fm = FileManager::new(PathBuf::from("testdata/file/file_manager/append"), 10);
 
-        let block = fm.append("tempfile2");
+        let block = fm.append("tempfile2").unwrap();
         assert_eq!(block, BlockId::new("tempfile2".to_string(), 0));
         assert_eq!(
             std::fs::read_to_string("testdata/file/file_manager/append/tempfile2").unwrap(),
