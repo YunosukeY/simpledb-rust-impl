@@ -94,3 +94,69 @@ impl LogManager {
         Ok(block)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    #[test]
+    fn test() {
+        let fm = FileManager::new(PathBuf::from("testdata/log/log_manager/test"), 20);
+        let mut lm = LogManager::new(fm, "tempfile".to_string());
+        assert_eq!(
+            std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
+            vec![0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // append new block
+        );
+
+        let lsn1 = lm.append(b"abc".to_vec());
+        assert_eq!(
+            std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
+            vec![0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // not flushed yet
+        );
+
+        lm.flush(lsn1).unwrap();
+        assert_eq!(
+            std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
+            vec![0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 97, 98, 99] // flushed
+        );
+
+        let lsn2 = lm.append(b"def".to_vec());
+        assert_eq!(
+            std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
+            vec![0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 97, 98, 99] // not flushed yet
+        );
+
+        lm.flush(lsn2).unwrap();
+        assert_eq!(
+            std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
+            vec![0, 0, 0, 6, 0, 0, 0, 0, 0, 3, 100, 101, 102, 0, 0, 0, 3, 97, 98, 99] // flushed
+        );
+
+        let lsn3 = lm.append(b"ghi".to_vec());
+        assert_eq!(
+            std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
+            vec![
+                0, 0, 0, 6, 0, 0, 0, 0, 0, 3, 100, 101, 102, 0, 0, 0, 3, 97, 98, 99, 0, 0, 0, 20,
+                0, 0, 0, 0, 0, 3, 100, 101, 102, 0, 0, 0, 3, 97, 98, 99
+            ] // append new block
+        );
+
+        lm.flush(lsn3).unwrap();
+        assert_eq!(
+            std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
+            vec![
+                0, 0, 0, 6, 0, 0, 0, 0, 0, 3, 100, 101, 102, 0, 0, 0, 3, 97, 98, 99, 0, 0, 0, 13,
+                0, 0, 0, 0, 0, 3, 100, 101, 102, 0, 0, 0, 3, 103, 104, 105
+            ] // flushed
+        );
+
+        // iterates in reverse order
+        let mut iter = lm.iter();
+        assert_eq!(iter.next().unwrap(), b"ghi".to_vec());
+        assert_eq!(iter.next().unwrap(), b"def".to_vec());
+        assert_eq!(iter.next().unwrap(), b"abc".to_vec());
+        assert_eq!(iter.next(), None);
+    }
+}
