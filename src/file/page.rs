@@ -30,19 +30,24 @@ impl Page {
         self.buf[ofs..ofs + 4].copy_from_slice(&value.to_be_bytes());
     }
 
-    pub fn get_bytes(&self, offset: i32) -> &[u8] {
-        let ofs = offset as usize;
-        &self.buf[ofs..]
+    pub fn get_bytes(&self, offset: i32) -> Result<&[u8]> {
+        let len = self.get_int(offset)?;
+
+        let ofs = offset as usize + 4;
+        Ok(&self.buf[ofs..ofs + len as usize])
     }
 
     pub fn set_bytes(&mut self, offset: i32, bytes: &[u8]) {
-        let ofs = offset as usize;
+        let len = bytes.len() as i32;
+        self.set_int(offset, len);
+
+        let ofs = offset as usize + 4;
         self.buf[ofs..ofs + bytes.len()].copy_from_slice(bytes);
     }
 
     pub fn get_string(&self, offset: i32) -> Result<String> {
-        let ofs = offset as usize;
-        Ok(from_utf8(&self.buf[ofs..])?.to_string())
+        let bytes = self.get_bytes(offset)?;
+        Ok(from_utf8(bytes)?.to_string())
     }
 
     pub fn set_string(&mut self, offset: i32, s: &str) {
@@ -78,29 +83,27 @@ mod tests {
 
     #[test]
     fn get_bytes() {
-        let p = Page::from_bytes(&[0, 1, 2, 3, 0]);
-        assert_eq!(p.get_bytes(0), &[0, 1, 2, 3, 0]);
-        assert_eq!(p.get_bytes(2), &[2, 3, 0]);
+        let p = Page::from_bytes(&[0, 0, 0, 0, 3, 1, 2, 3, 0, 0]);
+        assert_eq!(p.get_bytes(1).unwrap(), &[1, 2, 3]);
     }
 
     #[test]
     fn set_bytes() {
-        let mut p = Page::new(5);
+        let mut p = Page::new(10);
         p.set_bytes(1, &[1, 2, 3]);
-        assert_eq!(p.buf, [0, 1, 2, 3, 0]);
+        assert_eq!(p.buf, [0, 0, 0, 0, 3, 1, 2, 3, 0, 0]);
     }
 
     #[test]
     fn get_string() {
-        let p = Page::from_bytes(&[0, 97, 98, 99, 0]);
-        assert_eq!(p.get_string(0).unwrap(), "\0abc\0");
-        assert_eq!(p.get_string(2).unwrap(), "bc\0");
+        let p = Page::from_bytes(&[0, 0, 0, 0, 3, 97, 98, 99, 0, 0]);
+        assert_eq!(p.get_string(1).unwrap(), "abc");
     }
 
     #[test]
     fn set_string() {
-        let mut p = Page::new(5);
+        let mut p = Page::new(10);
         p.set_string(1, "abc");
-        assert_eq!(p.buf, [0, 97, 98, 99, 0]);
+        assert_eq!(p.buf, [0, 0, 0, 0, 3, 97, 98, 99, 0, 0]);
     }
 }
