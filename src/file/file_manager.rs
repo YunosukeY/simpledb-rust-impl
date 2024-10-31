@@ -125,7 +125,7 @@ mod tests {
 
         let block = BlockId::new("testfile".to_string(), 1);
         fm.read(block, &mut page).unwrap();
-        assert_eq!(page.get_string(0).unwrap(), "klmnopqrst");
+        assert_eq!(page.get_string(0).unwrap(), "abc");
     }
 
     #[test]
@@ -134,12 +134,12 @@ mod tests {
         let mut page = Page::new(fm.block_size());
 
         let block = BlockId::new("tempfile1".to_string(), 1);
-        page.set_string(0, "klmnopqrst");
+        page.set_string(0, "abc");
         fm.write(block, &page).unwrap();
 
         assert_eq!(
             std::fs::read_to_string("testdata/file/file_manager/write/tempfile1").unwrap(),
-            "\0\0\0\0\0\0\0\0\0\0klmnopqrst"
+            "\0\0\0\0\0\0\0\0\0\0\0\0\0\u{3}abc\0\0\0"
         );
     }
 
