@@ -48,7 +48,7 @@ impl FileManager {
         }
     }
 
-    pub fn read(&mut self, block: BlockId, page: &mut Page) -> Result<()> {
+    pub fn read(&mut self, block: &BlockId, page: &mut Page) -> Result<()> {
         let offset = block.block_num() * self.block_size;
 
         let file = self.get_file(block.filename()).lock().unwrap();
@@ -56,7 +56,7 @@ impl FileManager {
         Ok(())
     }
 
-    pub fn write(&mut self, block: BlockId, page: &Page) -> Result<()> {
+    pub fn write(&mut self, block: &BlockId, page: &Page) -> Result<()> {
         let offset = block.block_num() * self.block_size;
 
         let file = self.get_file(block.filename()).lock().unwrap();
@@ -124,7 +124,7 @@ mod tests {
         let mut page = Page::new(fm.block_size());
 
         let block = BlockId::new("testfile".to_string(), 1);
-        fm.read(block, &mut page).unwrap();
+        fm.read(&block, &mut page).unwrap();
         assert_eq!(page.get_string(0).unwrap(), "abc");
     }
 
@@ -135,7 +135,7 @@ mod tests {
 
         let block = BlockId::new("tempfile1".to_string(), 1);
         page.set_string(0, "abc");
-        fm.write(block, &page).unwrap();
+        fm.write(&block, &page).unwrap();
 
         assert_eq!(
             std::fs::read_to_string("testdata/file/file_manager/write/tempfile1").unwrap(),
