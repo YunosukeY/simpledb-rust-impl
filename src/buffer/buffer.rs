@@ -30,8 +30,8 @@ impl Buffer {
         }
     }
 
-    pub fn contents(&self) -> &Page {
-        &self.contents
+    pub fn contents(&mut self) -> &mut Page {
+        &mut self.contents
     }
 
     pub fn block(&self) -> &Option<BlockId> {
@@ -58,7 +58,9 @@ impl Buffer {
         self.block = Some(block);
         let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
         unsafe {
-            (*fm).read(&self.block.as_ref().unwrap(), &mut self.contents);
+            (*fm)
+                .read(&self.block.as_ref().unwrap(), &mut self.contents)
+                .unwrap();
         }
         self.pins = 0;
         Ok(())

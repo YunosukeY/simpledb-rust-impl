@@ -11,7 +11,7 @@ use crate::{
 
 use super::buffer::Buffer;
 
-const MAX_TIME: u128 = 10_000;
+const MAX_TIME: u128 = 1_000;
 
 pub struct BufferManager {
     m: Mutex<()>,
@@ -21,9 +21,8 @@ pub struct BufferManager {
 }
 
 impl BufferManager {
-    pub fn new(fm: FileManager, lm: LogManager, num_buffers: i32) -> Self {
+    pub fn new(fm: Arc<FileManager>, lm: LogManager, num_buffers: i32) -> Self {
         let mut buffer_pool = Vec::new();
-        let fm = Arc::new(fm);
         let lm = Arc::new(lm);
         for _ in 0..num_buffers {
             buffer_pool.push(Buffer::new(fm.clone(), lm.clone()));
@@ -34,6 +33,14 @@ impl BufferManager {
             buffer_pool,
             num_available: num_buffers,
         }
+    }
+
+    pub fn get(&self, buf_idx: usize) -> &Buffer {
+        &self.buffer_pool[buf_idx]
+    }
+
+    pub fn get_mut(&mut self, buf_idx: usize) -> &mut Buffer {
+        &mut self.buffer_pool[buf_idx]
     }
 
     pub fn available(&self) -> i32 {
@@ -50,8 +57,9 @@ impl BufferManager {
         }
     }
 
-    pub fn unpin(&mut self, buffer: &mut Buffer) {
+    pub fn unpin(&mut self, buf_idx: usize) {
         let _lock = self.m.lock().unwrap();
+        let buffer = &mut self.buffer_pool[buf_idx];
         buffer.unpin();
         if !buffer.is_pinned() {
             self.num_available += 1;
@@ -59,7 +67,7 @@ impl BufferManager {
         }
     }
 
-    pub fn pin(&mut self, block: &BlockId) -> Result<&Buffer> {
+    pub fn pin(&mut self, block: &BlockId) -> Result<usize> {
         let mut lock = self.m.lock().unwrap();
         let start_time = Self::current_time_millis();
         let buffer_pool_ptr = &mut self.buffer_pool as *mut Vec<Buffer>;
@@ -94,49 +102,154 @@ impl BufferManager {
         current_time - start_time > MAX_TIME
     }
 
-    fn try_to_pin<'a, 'b>(
-        buffer_pool: &'a mut Vec<Buffer>,
+    fn try_to_pin(
+        buffer_pool: &mut Vec<Buffer>,
         num_available: &mut i32,
-        block: &'b BlockId,
-    ) -> Option<&'a mut Buffer> {
-        let is_buffer_exist = Self::is_buffer_exist(buffer_pool, &block);
-        let is_unpinned_buffer_exist = Self::is_unpinned_buffer_exist(buffer_pool);
-        if !is_buffer_exist && !is_unpinned_buffer_exist {
+        block: &BlockId,
+    ) -> Option<usize> {
+        let existing_buffer_position = Self::existing_buffer_position(buffer_pool, &block);
+        let unpinned_buffer_position = Self::unpinned_buffer_position(buffer_pool);
+        if existing_buffer_position.is_none() && unpinned_buffer_position.is_none() {
             return None;
         }
 
-        let buffer = if is_buffer_exist {
-            Self::find_existing_buffer(buffer_pool, &block).unwrap()
+        let (buffer, position) = if existing_buffer_position.is_some() {
+            let position = existing_buffer_position.unwrap();
+            (&mut buffer_pool[position], position)
         } else {
-            Self::choose_unpinned_buffer(buffer_pool).unwrap()
+            let position = unpinned_buffer_position.unwrap();
+            let buffer = &mut buffer_pool[position];
+            buffer.assign_to_block(block.clone()).unwrap();
+            (buffer, position)
         };
         if !buffer.is_pinned() {
             *num_available -= 1;
         }
         buffer.pin();
-        Some(buffer)
+        Some(position)
     }
 
-    fn is_buffer_exist(buffer_pool: &Vec<Buffer>, block: &BlockId) -> bool {
+    fn existing_buffer_position(buffer_pool: &Vec<Buffer>, block: &BlockId) -> Option<usize> {
         buffer_pool
             .iter()
-            .any(|buffer| buffer.block().as_ref() == Some(block))
+            .position(|buffer| buffer.block().as_ref() == Some(block))
     }
 
-    fn find_existing_buffer<'a, 'b>(
-        buffer_pool: &'a mut Vec<Buffer>,
-        block: &'b BlockId,
-    ) -> Option<&'a mut Buffer> {
-        buffer_pool
-            .iter_mut()
-            .find(|buffer| buffer.block().as_ref() == Some(block))
+    fn unpinned_buffer_position(buffer_pool: &Vec<Buffer>) -> Option<usize> {
+        buffer_pool.iter().position(|buffer| !buffer.is_pinned())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    #[test]
+    fn pin_and_unpin() {
+        // create testfile
+        std::fs::write(
+            "testdata/buffer/buffer_manager/pin_and_unpin/testfile",
+            "a".to_string().repeat(40),
+        )
+        .unwrap();
+
+        let fm = FileManager::new(
+            PathBuf::from("testdata/buffer/buffer_manager/pin_and_unpin"),
+            10,
+        );
+        let fm = Arc::new(fm);
+        let lm = LogManager::new(fm.clone(), "templog".to_string());
+        let mut bm = BufferManager::new(fm.clone(), lm, 3);
+        assert_eq!(bm.available(), 3);
+
+        let mut buffers: Vec<i32> = vec![];
+
+        // fill buffer
+        for i in 0..3 {
+            let buf = bm.pin(&BlockId::new("testfile".to_string(), i)).unwrap();
+            assert_eq!(buf, i as usize);
+            assert_eq!(bm.available(), 2 - i);
+            buffers.push(buf as i32);
+        }
+
+        // free
+        bm.unpin(buffers[1] as usize);
+        assert_eq!(bm.available(), 1);
+        buffers[1] = -1;
+
+        // fill buffer
+        for i in 0..2 {
+            let buf = bm.pin(&BlockId::new("testfile".to_string(), i)).unwrap();
+            assert_eq!(buf, i as usize);
+            assert_eq!(bm.available(), 1 - i);
+            buffers.push(buf as i32);
+        }
+
+        // buffer is full
+        let res = bm.pin(&BlockId::new("testfile".to_string(), 3));
+        assert!(res.is_err());
+
+        // free
+        bm.unpin(buffers[2] as usize);
+        assert_eq!(bm.available(), 1);
+        buffers[2] = -1;
+
+        // now buffer is available
+        let buf = bm.pin(&BlockId::new("testfile".to_string(), 3)).unwrap();
+        assert_eq!(buf, 2);
+        assert_eq!(bm.available(), 0);
+        buffers.push(buf as i32);
+
+        // delete testfile
+        std::fs::remove_file("testdata/buffer/buffer_manager/pin_and_unpin/testfile").unwrap();
     }
 
-    fn is_unpinned_buffer_exist(buffer_pool: &Vec<Buffer>) -> bool {
-        buffer_pool.iter().any(|buffer| !buffer.is_pinned())
-    }
+    #[test]
+    fn modify_and_flush() {
+        // create testfile
+        std::fs::write(
+            "testdata/buffer/buffer_manager/modify_and_flush/testfile",
+            "\0".to_string().repeat(30),
+        )
+        .unwrap();
 
-    fn choose_unpinned_buffer(buffer_pool: &mut Vec<Buffer>) -> Option<&mut Buffer> {
-        buffer_pool.iter_mut().find(|buffer| !buffer.is_pinned())
+        let fm = FileManager::new(
+            PathBuf::from("testdata/buffer/buffer_manager/modify_and_flush"),
+            10,
+        );
+        let fm = Arc::new(fm);
+        let lm = LogManager::new(fm.clone(), "templog".to_string());
+        let mut bm = BufferManager::new(fm.clone(), lm, 3);
+
+        // 0: modify and set_modified
+        bm.pin(&BlockId::new("testfile".to_string(), 0)).unwrap();
+        let buf = bm.get_mut(0);
+        buf.contents().set_string(0, "abcde");
+        buf.set_modified(1, 1);
+
+        // 1: modify and set_modified
+        bm.pin(&BlockId::new("testfile".to_string(), 1)).unwrap();
+        let buf = bm.get_mut(1);
+        buf.contents().set_string(0, "fghij");
+        buf.set_modified(1, 2);
+
+        // 2: just modify, not set_modified
+        bm.pin(&BlockId::new("testfile".to_string(), 2)).unwrap();
+        let buf = bm.get_mut(2);
+        buf.contents().set_string(0, "klmno");
+
+        bm.flush_all(1);
+
+        // 0 and 1 are flushed, 2 is not
+        assert_eq!(
+            std::fs::read_to_string("testdata/buffer/buffer_manager/modify_and_flush/testfile")
+                .unwrap(),
+            "\0\0\0\u{5}abcde\0\0\0\0\u{5}fghij\0\0\0\0\0\0\0\0\0\0\0"
+        );
+
+        // delete testfile
+        std::fs::remove_file("testdata/buffer/buffer_manager/modify_and_flush/testfile").unwrap();
     }
 }

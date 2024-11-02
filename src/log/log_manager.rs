@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::{
     file::{block_id::BlockId, file_manager::FileManager, page::Page},
@@ -9,7 +9,7 @@ use super::log_iterator::LogIterator;
 
 pub struct LogManager {
     m: Mutex<()>,
-    fm: FileManager,
+    fm: Arc<FileManager>,
     log_page: Page,
     current_block: BlockId,
     latest_lsn: i32,
@@ -17,15 +17,18 @@ pub struct LogManager {
 }
 
 impl LogManager {
-    pub fn new(mut fm: FileManager, log_file: String) -> Self {
+    pub fn new(mut fm: Arc<FileManager>, log_file: String) -> Self {
         let mut log_page = Page::new(fm.block_size());
 
-        let log_size = fm.length(&log_file).unwrap();
+        let fm_ptr = Arc::as_ptr(&fm) as *mut FileManager;
+        let log_size = unsafe { (*fm_ptr).length(&log_file).unwrap() };
         let current_block: BlockId = if log_size == 0 {
-            Self::append_new_block(&mut fm, &log_file, &mut log_page).unwrap()
+            unsafe { Self::append_new_block(&mut *fm_ptr, &log_file, &mut log_page).unwrap() }
         } else {
             let current_block = BlockId::new(log_file, log_size - 1);
-            fm.read(&current_block, &mut log_page).unwrap();
+            unsafe {
+                (*fm_ptr).read(&current_block, &mut log_page).unwrap();
+            }
             current_block
         };
 
@@ -42,7 +45,10 @@ impl LogManager {
     pub fn flush(&mut self, lsn: i32) -> Result<()> {
         if lsn >= self.last_saved_lsn {
             // flush
-            self.fm.write(&self.current_block, &self.log_page)?;
+            let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
+            unsafe {
+                (*fm).write(&self.current_block, &self.log_page)?;
+            }
             self.last_saved_lsn = self.latest_lsn;
         }
         Ok(())
@@ -50,10 +56,13 @@ impl LogManager {
 
     pub fn iter(&mut self) -> impl Iterator<Item = Vec<u8>> + '_ {
         // flush
-        self.fm.write(&self.current_block, &self.log_page).unwrap();
+        let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
+        unsafe {
+            (*fm).write(&self.current_block, &self.log_page).unwrap();
+        }
         self.last_saved_lsn = self.latest_lsn;
 
-        LogIterator::new(&mut self.fm, self.current_block.clone())
+        unsafe { LogIterator::new(&mut *fm, self.current_block.clone()) }
     }
 
     pub fn append(&mut self, log_record: Vec<u8>) -> i32 {
@@ -63,15 +72,20 @@ impl LogManager {
         let bytes_needed = log_record.len() as i32 + 4;
         if boundary - bytes_needed < 4 {
             // flush
-            self.fm.write(&self.current_block, &self.log_page).unwrap();
+            let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
+            unsafe {
+                (*fm).write(&self.current_block, &self.log_page).unwrap();
+            }
             self.last_saved_lsn = self.latest_lsn;
 
-            self.current_block = Self::append_new_block(
-                &mut self.fm,
-                self.current_block.filename(),
-                &mut self.log_page,
-            )
-            .unwrap();
+            unsafe {
+                self.current_block = Self::append_new_block(
+                    &mut *fm,
+                    self.current_block.filename(),
+                    &mut self.log_page,
+                )
+                .unwrap();
+            }
             boundary = self.log_page.get_int(0).unwrap();
         }
 
@@ -104,6 +118,7 @@ mod tests {
     #[test]
     fn test() {
         let fm = FileManager::new(PathBuf::from("testdata/log/log_manager/test"), 20);
+        let fm = Arc::new(fm);
         let mut lm = LogManager::new(fm, "tempfile".to_string());
         assert_eq!(
             std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
