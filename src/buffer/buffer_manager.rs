@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeSet, HashMap},
     sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
@@ -11,13 +12,15 @@ use crate::{
 
 use super::buffer::Buffer;
 
-const MAX_TIME: u128 = 10_000;
+const MAX_TIME: u128 = 1_000;
 
 pub struct BufferManager {
     m: Mutex<()>,
     cond: Condvar,
     buffer_pool: Vec<Buffer>,
     num_available: i32,
+    unpinned_positions: BTreeSet<i32>,
+    existing_positions: HashMap<BlockId, i32>,
 }
 
 impl BufferManager {
@@ -32,6 +35,8 @@ impl BufferManager {
             cond: Condvar::new(),
             buffer_pool,
             num_available: num_buffers,
+            unpinned_positions: (0..num_buffers).collect(),
+            existing_positions: HashMap::new(),
         }
     }
 
@@ -64,6 +69,7 @@ impl BufferManager {
         buffer.unpin();
         if !buffer.is_pinned() {
             self.num_available += 1;
+            self.unpinned_positions.insert(buf_idx);
             self.cond.notify_all();
         }
     }
@@ -74,7 +80,13 @@ impl BufferManager {
         let buffer_pool_ptr = &mut self.buffer_pool as *mut Vec<Buffer>;
         loop {
             let buffer_pool = unsafe { &mut *buffer_pool_ptr };
-            let buffer = Self::try_to_pin(buffer_pool, &mut self.num_available, &block)?;
+            let buffer = Self::try_to_pin(
+                buffer_pool,
+                &mut self.num_available,
+                &block,
+                &mut self.unpinned_positions,
+                &mut self.existing_positions,
+            )?;
             if buffer.is_some() || Self::waiting_too_long(start_time) {
                 return buffer.ok_or("no available buffer".into());
             }
@@ -103,41 +115,42 @@ impl BufferManager {
         buffer_pool: &mut Vec<Buffer>,
         num_available: &mut i32,
         block: &BlockId,
+        unpinned_positions: &mut BTreeSet<i32>,
+        existing_positions: &mut HashMap<BlockId, i32>,
     ) -> Result<Option<i32>> {
-        let existing_buffer_position = Self::existing_buffer_position(buffer_pool, &block);
-        let unpinned_buffer_position = Self::unpinned_buffer_position(buffer_pool);
-        if existing_buffer_position.is_none() && unpinned_buffer_position.is_none() {
+        let existing_position = Self::existing_position(existing_positions, &block);
+        let unpinned_position = Self::unpinned_position(unpinned_positions);
+        if existing_position.is_none() && unpinned_position.is_none() {
             return Ok(None);
         }
 
-        let (buffer, position) = if existing_buffer_position.is_some() {
-            let position = existing_buffer_position.unwrap();
+        let (buffer, position) = if existing_position.is_some() {
+            let position = existing_position.unwrap();
             (&mut buffer_pool[position as usize], position)
         } else {
-            let position = unpinned_buffer_position.unwrap();
+            let position = unpinned_position.unwrap();
             let buffer = &mut buffer_pool[position as usize];
             buffer.assign_to_block(block.clone())?;
+            existing_positions.insert(block.clone(), position);
             (buffer, position)
         };
         if !buffer.is_pinned() {
             *num_available -= 1;
+            unpinned_positions.remove(&position);
         }
         buffer.pin();
         Ok(Some(position))
     }
 
-    fn existing_buffer_position(buffer_pool: &Vec<Buffer>, block: &BlockId) -> Option<i32> {
-        buffer_pool
-            .iter()
-            .position(|buffer| buffer.block().as_ref() == Some(block))
-            .map(|pos| pos as i32)
+    fn existing_position(
+        existing_positions: &HashMap<BlockId, i32>,
+        block: &BlockId,
+    ) -> Option<i32> {
+        existing_positions.get(block).map(|pos| *pos)
     }
 
-    fn unpinned_buffer_position(buffer_pool: &Vec<Buffer>) -> Option<i32> {
-        buffer_pool
-            .iter()
-            .position(|buffer| !buffer.is_pinned())
-            .map(|pos| pos as i32)
+    fn unpinned_position(unpinned_positions: &BTreeSet<i32>) -> Option<i32> {
+        unpinned_positions.iter().next().map(|pos| *pos)
     }
 }
 
