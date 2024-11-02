@@ -1,4 +1,3 @@
-use crate::util::Result;
 use std::str::from_utf8;
 
 pub struct Page {
@@ -18,11 +17,11 @@ impl Page {
         }
     }
 
-    pub fn get_int(&self, offset: i32) -> Result<i32> {
+    pub fn get_int(&self, offset: i32) -> i32 {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 4];
-        let a = bytes.try_into()?;
-        Ok(i32::from_be_bytes(a))
+        let a = bytes.try_into().unwrap();
+        i32::from_be_bytes(a)
     }
 
     pub fn set_int(&mut self, offset: i32, value: i32) {
@@ -30,11 +29,11 @@ impl Page {
         self.buf[ofs..ofs + 4].copy_from_slice(&value.to_be_bytes());
     }
 
-    pub fn get_bytes(&self, offset: i32) -> Result<&[u8]> {
-        let len = self.get_int(offset)?;
+    pub fn get_bytes(&self, offset: i32) -> &[u8] {
+        let len = self.get_int(offset);
 
         let ofs = offset as usize + 4;
-        Ok(&self.buf[ofs..ofs + len as usize])
+        &self.buf[ofs..ofs + len as usize]
     }
 
     pub fn set_bytes(&mut self, offset: i32, bytes: &[u8]) {
@@ -45,9 +44,9 @@ impl Page {
         self.buf[ofs..ofs + bytes.len()].copy_from_slice(bytes);
     }
 
-    pub fn get_string(&self, offset: i32) -> Result<String> {
-        let bytes = self.get_bytes(offset)?;
-        Ok(from_utf8(bytes)?.to_string())
+    pub fn get_string(&self, offset: i32) -> String {
+        let bytes = self.get_bytes(offset);
+        from_utf8(bytes).unwrap().to_string()
     }
 
     pub fn set_string(&mut self, offset: i32, s: &str) {
@@ -67,9 +66,9 @@ mod tests {
     #[test]
     fn get_int() {
         let p = Page::from_bytes(&[0, 0, 0, 1, 255, 255, 255, 255, 0, 0, 0, 0]);
-        assert_eq!(p.get_int(0).unwrap(), 1);
-        assert_eq!(p.get_int(4).unwrap(), -1);
-        assert_eq!(p.get_int(8).unwrap(), 0);
+        assert_eq!(p.get_int(0), 1);
+        assert_eq!(p.get_int(4), -1);
+        assert_eq!(p.get_int(8), 0);
     }
 
     #[test]
@@ -84,7 +83,7 @@ mod tests {
     #[test]
     fn get_bytes() {
         let p = Page::from_bytes(&[0, 0, 0, 0, 3, 1, 2, 3, 0, 0]);
-        assert_eq!(p.get_bytes(1).unwrap(), &[1, 2, 3]);
+        assert_eq!(p.get_bytes(1), &[1, 2, 3]);
     }
 
     #[test]
@@ -97,7 +96,7 @@ mod tests {
     #[test]
     fn get_string() {
         let p = Page::from_bytes(&[0, 0, 0, 0, 3, 97, 98, 99, 0, 0]);
-        assert_eq!(p.get_string(1).unwrap(), "abc");
+        assert_eq!(p.get_string(1), "abc");
     }
 
     #[test]
