@@ -58,9 +58,7 @@ impl Buffer {
         self.block = Some(block);
         let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
         unsafe {
-            (*fm)
-                .read(&self.block.as_ref().unwrap(), &mut self.contents)
-                .unwrap();
+            (*fm).read(&self.block.as_ref().unwrap(), &mut self.contents)?;
         }
         self.pins = 0;
         Ok(())

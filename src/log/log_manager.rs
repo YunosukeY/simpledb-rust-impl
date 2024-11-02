@@ -54,27 +54,27 @@ impl LogManager {
         Ok(())
     }
 
-    pub fn iter(&mut self) -> impl Iterator<Item = Vec<u8>> + '_ {
+    pub fn iter(&mut self) -> Result<impl Iterator<Item = Vec<u8>> + '_> {
         // flush
         let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
         unsafe {
-            (*fm).write(&self.current_block, &self.log_page).unwrap();
+            (*fm).write(&self.current_block, &self.log_page)?;
         }
         self.last_saved_lsn = self.latest_lsn;
 
-        unsafe { LogIterator::new(&mut *fm, self.current_block.clone()) }
+        unsafe { Ok(LogIterator::new(&mut *fm, self.current_block.clone())) }
     }
 
-    pub fn append(&mut self, log_record: Vec<u8>) -> i32 {
+    pub fn append(&mut self, log_record: Vec<u8>) -> Result<i32> {
         let _lock = self.m.lock().unwrap();
 
-        let mut boundary = self.log_page.get_int(0).unwrap();
+        let mut boundary = self.log_page.get_int(0)?;
         let bytes_needed = log_record.len() as i32 + 4;
         if boundary - bytes_needed < 4 {
             // flush
             let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
             unsafe {
-                (*fm).write(&self.current_block, &self.log_page).unwrap();
+                (*fm).write(&self.current_block, &self.log_page)?;
             }
             self.last_saved_lsn = self.latest_lsn;
 
@@ -83,10 +83,9 @@ impl LogManager {
                     &mut *fm,
                     self.current_block.filename(),
                     &mut self.log_page,
-                )
-                .unwrap();
+                )?;
             }
-            boundary = self.log_page.get_int(0).unwrap();
+            boundary = self.log_page.get_int(0)?;
         }
 
         let rec_pos = boundary - bytes_needed;
@@ -94,7 +93,7 @@ impl LogManager {
         self.log_page.set_int(0, rec_pos);
 
         self.latest_lsn += 1;
-        self.latest_lsn
+        Ok(self.latest_lsn)
     }
 
     fn append_new_block(
@@ -125,7 +124,7 @@ mod tests {
             vec![0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // append new block
         );
 
-        let lsn1 = lm.append(b"abc".to_vec());
+        let lsn1 = lm.append(b"abc".to_vec()).unwrap();
         assert_eq!(
             std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
             vec![0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // not flushed yet
@@ -137,7 +136,7 @@ mod tests {
             vec![0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 97, 98, 99] // flushed
         );
 
-        let lsn2 = lm.append(b"def".to_vec());
+        let lsn2 = lm.append(b"def".to_vec()).unwrap();
         assert_eq!(
             std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
             vec![0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 97, 98, 99] // not flushed yet
@@ -149,7 +148,7 @@ mod tests {
             vec![0, 0, 0, 6, 0, 0, 0, 0, 0, 3, 100, 101, 102, 0, 0, 0, 3, 97, 98, 99] // flushed
         );
 
-        let lsn3 = lm.append(b"ghi".to_vec());
+        let lsn3 = lm.append(b"ghi".to_vec()).unwrap();
         assert_eq!(
             std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
             vec![
@@ -168,7 +167,7 @@ mod tests {
         );
 
         // iterates in reverse order
-        let mut iter = lm.iter();
+        let mut iter = lm.iter().unwrap();
         assert_eq!(iter.next().unwrap(), b"ghi".to_vec());
         assert_eq!(iter.next().unwrap(), b"def".to_vec());
         assert_eq!(iter.next().unwrap(), b"abc".to_vec());

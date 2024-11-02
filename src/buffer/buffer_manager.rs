@@ -11,7 +11,7 @@ use crate::{
 
 use super::buffer::Buffer;
 
-const MAX_TIME: u128 = 1_000;
+const MAX_TIME: u128 = 10_000;
 
 pub struct BufferManager {
     m: Mutex<()>,
@@ -35,12 +35,12 @@ impl BufferManager {
         }
     }
 
-    pub fn get(&self, buf_idx: usize) -> &Buffer {
-        &self.buffer_pool[buf_idx]
+    pub fn get(&self, buf_idx: i32) -> &Buffer {
+        &self.buffer_pool[buf_idx as usize]
     }
 
-    pub fn get_mut(&mut self, buf_idx: usize) -> &mut Buffer {
-        &mut self.buffer_pool[buf_idx]
+    pub fn get_mut(&mut self, buf_idx: i32) -> &mut Buffer {
+        &mut self.buffer_pool[buf_idx as usize]
     }
 
     pub fn available(&self) -> i32 {
@@ -48,18 +48,19 @@ impl BufferManager {
         self.num_available
     }
 
-    pub fn flush_all(&mut self, tx_num: i32) {
+    pub fn flush_all(&mut self, tx_num: i32) -> Result<()> {
         let _lock = self.m.lock().unwrap();
         for buffer in self.buffer_pool.iter_mut() {
             if buffer.modifying_tx() == tx_num {
-                buffer.flush().unwrap();
+                buffer.flush()?;
             }
         }
+        Ok(())
     }
 
-    pub fn unpin(&mut self, buf_idx: usize) {
+    pub fn unpin(&mut self, buf_idx: i32) {
         let _lock = self.m.lock().unwrap();
-        let buffer = &mut self.buffer_pool[buf_idx];
+        let buffer = &mut self.buffer_pool[buf_idx as usize];
         buffer.unpin();
         if !buffer.is_pinned() {
             self.num_available += 1;
@@ -67,15 +68,15 @@ impl BufferManager {
         }
     }
 
-    pub fn pin(&mut self, block: &BlockId) -> Result<usize> {
+    pub fn pin(&mut self, block: &BlockId) -> Result<i32> {
         let mut lock = self.m.lock().unwrap();
         let start_time = Self::current_time_millis();
         let buffer_pool_ptr = &mut self.buffer_pool as *mut Vec<Buffer>;
-        let buffer = loop {
+        loop {
             let buffer_pool = unsafe { &mut *buffer_pool_ptr };
-            let buffer = Self::try_to_pin(buffer_pool, &mut self.num_available, &block);
+            let buffer = Self::try_to_pin(buffer_pool, &mut self.num_available, &block)?;
             if buffer.is_some() || Self::waiting_too_long(start_time) {
-                break buffer;
+                return buffer.ok_or("no available buffer".into());
             }
 
             lock = self
@@ -83,11 +84,7 @@ impl BufferManager {
                 .wait_timeout(lock, Duration::from_millis(MAX_TIME as u64))
                 .unwrap()
                 .0;
-        };
-        if buffer.is_none() {
-            return Err("no available buffer".into());
         }
-        Ok(buffer.unwrap())
     }
 
     fn current_time_millis() -> u128 {
@@ -106,37 +103,41 @@ impl BufferManager {
         buffer_pool: &mut Vec<Buffer>,
         num_available: &mut i32,
         block: &BlockId,
-    ) -> Option<usize> {
+    ) -> Result<Option<i32>> {
         let existing_buffer_position = Self::existing_buffer_position(buffer_pool, &block);
         let unpinned_buffer_position = Self::unpinned_buffer_position(buffer_pool);
         if existing_buffer_position.is_none() && unpinned_buffer_position.is_none() {
-            return None;
+            return Ok(None);
         }
 
         let (buffer, position) = if existing_buffer_position.is_some() {
             let position = existing_buffer_position.unwrap();
-            (&mut buffer_pool[position], position)
+            (&mut buffer_pool[position as usize], position)
         } else {
             let position = unpinned_buffer_position.unwrap();
-            let buffer = &mut buffer_pool[position];
-            buffer.assign_to_block(block.clone()).unwrap();
+            let buffer = &mut buffer_pool[position as usize];
+            buffer.assign_to_block(block.clone())?;
             (buffer, position)
         };
         if !buffer.is_pinned() {
             *num_available -= 1;
         }
         buffer.pin();
-        Some(position)
+        Ok(Some(position))
     }
 
-    fn existing_buffer_position(buffer_pool: &Vec<Buffer>, block: &BlockId) -> Option<usize> {
+    fn existing_buffer_position(buffer_pool: &Vec<Buffer>, block: &BlockId) -> Option<i32> {
         buffer_pool
             .iter()
             .position(|buffer| buffer.block().as_ref() == Some(block))
+            .map(|pos| pos as i32)
     }
 
-    fn unpinned_buffer_position(buffer_pool: &Vec<Buffer>) -> Option<usize> {
-        buffer_pool.iter().position(|buffer| !buffer.is_pinned())
+    fn unpinned_buffer_position(buffer_pool: &Vec<Buffer>) -> Option<i32> {
+        buffer_pool
+            .iter()
+            .position(|buffer| !buffer.is_pinned())
+            .map(|pos| pos as i32)
     }
 }
 
@@ -169,20 +170,20 @@ mod tests {
         // fill buffer
         for i in 0..3 {
             let buf = bm.pin(&BlockId::new("testfile".to_string(), i)).unwrap();
-            assert_eq!(buf, i as usize);
+            assert_eq!(buf, i);
             assert_eq!(bm.available(), 2 - i);
             buffers.push(buf as i32);
         }
 
         // free
-        bm.unpin(buffers[1] as usize);
+        bm.unpin(buffers[1]);
         assert_eq!(bm.available(), 1);
         buffers[1] = -1;
 
         // fill buffer
         for i in 0..2 {
             let buf = bm.pin(&BlockId::new("testfile".to_string(), i)).unwrap();
-            assert_eq!(buf, i as usize);
+            assert_eq!(buf, i);
             assert_eq!(bm.available(), 1 - i);
             buffers.push(buf as i32);
         }
@@ -192,7 +193,7 @@ mod tests {
         assert!(res.is_err());
 
         // free
-        bm.unpin(buffers[2] as usize);
+        bm.unpin(buffers[2]);
         assert_eq!(bm.available(), 1);
         buffers[2] = -1;
 
