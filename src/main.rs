@@ -1,4 +1,6 @@
+mod buffer;
 mod file;
+mod log;
 mod util;
 
 fn main() {

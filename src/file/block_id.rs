@@ -1,4 +1,4 @@
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct BlockId {
     filename: String,
     block_num: i32,
