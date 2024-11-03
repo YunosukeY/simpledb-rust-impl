@@ -1,13 +1,15 @@
 #![allow(dead_code)]
 
-use crate::tx::transaction::Transaction;
+use crate::{file::page::Page, tx::transaction::Transaction};
 
-pub static CHECKPOINT: i32 = 0;
-pub static START: i32 = 1;
-pub static COMMIT: i32 = 2;
-pub static ROLLBACK: i32 = 3;
-pub static SET_INT: i32 = 4;
-pub static SET_STRING: i32 = 5;
+use super::checkpoint_record::CheckpointRecord;
+
+pub const CHECKPOINT: i32 = 0;
+pub const START: i32 = 1;
+pub const COMMIT: i32 = 2;
+pub const ROLLBACK: i32 = 3;
+pub const SET_INT: i32 = 4;
+pub const SET_STRING: i32 = 5;
 
 pub trait LogRecord {
     fn op(&self) -> i32;
@@ -17,5 +19,11 @@ pub trait LogRecord {
     fn undo(&self, tx: Transaction);
 
     // TODO
-    fn create_log_record(bytes: Vec<u8>) {}
+    fn create_log_record(bytes: Vec<u8>) -> Option<impl LogRecord> {
+        let p = Page::from_bytes(&bytes);
+        match p.get_int(0) {
+            CHECKPOINT => Some(CheckpointRecord::new()),
+            _ => None,
+        }
+    }
 }
