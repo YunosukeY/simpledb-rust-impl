@@ -68,7 +68,7 @@ impl LogManager {
     pub fn append(&mut self, log_record: Vec<u8>) -> Result<i32> {
         let _lock = self.m.lock().unwrap();
 
-        let mut boundary = self.log_page.get_int(0)?;
+        let mut boundary = self.log_page.get_int(0);
         let bytes_needed = log_record.len() as i32 + 4;
         if boundary - bytes_needed < 4 {
             // flush
@@ -85,7 +85,7 @@ impl LogManager {
                     &mut self.log_page,
                 )?;
             }
-            boundary = self.log_page.get_int(0)?;
+            boundary = self.log_page.get_int(0);
         }
 
         let rec_pos = boundary - bytes_needed;

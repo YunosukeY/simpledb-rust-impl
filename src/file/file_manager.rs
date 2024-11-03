@@ -125,7 +125,7 @@ mod tests {
 
         let block = BlockId::new("testfile".to_string(), 1);
         fm.read(&block, &mut page).unwrap();
-        assert_eq!(page.get_string(0).unwrap(), "abc");
+        assert_eq!(page.get_string(0), "abc");
     }
 
     #[test]

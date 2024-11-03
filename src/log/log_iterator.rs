@@ -31,7 +31,7 @@ impl<'a> LogIterator<'a> {
 
     fn move_to_block(&mut self) -> Result<()> {
         self.fm.read(&self.block, &mut self.page)?;
-        self.boundary = self.page.get_int(0)?;
+        self.boundary = self.page.get_int(0);
         self.current_pos = self.boundary;
         Ok(())
     }
@@ -52,7 +52,7 @@ impl<'a> Iterator for LogIterator<'a> {
             );
             self.move_to_block().unwrap();
         }
-        let record = self.page.get_bytes(self.current_pos).unwrap();
+        let record = self.page.get_bytes(self.current_pos);
         self.current_pos += record.len() as i32 + 4;
         Some(record.to_vec())
     }
