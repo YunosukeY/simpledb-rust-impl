@@ -163,61 +163,51 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get_int() {
-        let p = Page::from_bytes(&[0, 0, 0, 1, 255, 255, 255, 255, 0, 0, 0, 0]);
-        assert_eq!(p.get_int(0), 1);
-        assert_eq!(p.get_int(4), -1);
-        assert_eq!(p.get_int(8), 0);
+    fn int() {
+        let mut p = Page::new(4);
+
+        let values = [0, 1, -1, i32::MAX, i32::MIN];
+
+        for value in values {
+            p.set_int(0, value);
+            assert_eq!(p.get_int(0), value, "value: {}", value);
+        }
     }
 
     #[test]
-    fn set_int() {
-        let mut p = Page::new(12);
-        p.set_int(0, 1);
-        p.set_int(4, -1);
-
-        assert_eq!(p.buf, [0, 0, 0, 1, 255, 255, 255, 255, 0, 0, 0, 0]);
-    }
-
-    #[test]
-    fn get_bytes() {
-        let p = Page::from_bytes(&[0, 0, 0, 0, 3, 1, 2, 3, 0, 0]);
-        assert_eq!(p.get_bytes(1), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn set_bytes() {
+    fn bytes() {
         let mut p = Page::new(10);
-        p.set_bytes(1, &[1, 2, 3]);
-        assert_eq!(p.buf, [0, 0, 0, 0, 3, 1, 2, 3, 0, 0]);
+
+        let values: [&[u8]; 2] = [&[], &[1, 2, 3]];
+
+        for value in values {
+            p.set_bytes(0, value);
+            assert_eq!(p.get_bytes(0), value);
+        }
     }
 
     #[test]
-    fn get_string() {
-        let p = Page::from_bytes(&[0, 0, 0, 0, 3, 97, 98, 99, 0, 0]);
-        assert_eq!(p.get_string(1), "abc");
+    fn string() {
+        let mut p = Page::new(7);
+
+        let values = ["", "abc"];
+
+        for value in values {
+            p.set_string(0, value);
+            assert_eq!(p.get_string(0), value, "value: {}", value);
+        }
     }
 
     #[test]
-    fn set_string() {
-        let mut p = Page::new(10);
-        p.set_string(1, "abc");
-        assert_eq!(p.buf, [0, 0, 0, 0, 3, 97, 98, 99, 0, 0]);
-    }
+    fn bool() {
+        let mut p = Page::new(1);
 
-    #[test]
-    fn get_bool() {
-        let p = Page::from_bytes(&[0, 1]);
-        assert_eq!(p.get_bool(0), false);
-        assert_eq!(p.get_bool(1), true);
-    }
+        let values = [false, true];
 
-    #[test]
-    fn set_bool() {
-        let mut p = Page::new(2);
-        p.set_bool(0, false);
-        p.set_bool(1, true);
-        assert_eq!(p.buf, [0, 1]);
+        for value in values {
+            p.set_bool(0, value);
+            assert_eq!(p.get_bool(0), value, "value: {}", value);
+        }
     }
 
     #[test]
@@ -234,9 +224,9 @@ mod tests {
             -0.0,
         ];
 
-        for value in values.iter() {
-            p.set_double(0, *value);
-            assert_eq!(p.get_double(0), *value, "value: {}", value);
+        for value in values {
+            p.set_double(0, value);
+            assert_eq!(p.get_double(0), value, "value: {}", value);
         }
 
         p.set_double(0, std::f64::NAN);
@@ -255,9 +245,9 @@ mod tests {
             NaiveDate::MIN,
         ];
 
-        for value in values.iter() {
-            p.set_date(0, *value);
-            assert_eq!(p.get_date(0), *value, "value: {}", value);
+        for value in values {
+            p.set_date(0, value);
+            assert_eq!(p.get_date(0), value, "value: {}", value);
         }
     }
 
@@ -272,9 +262,9 @@ mod tests {
             NaiveTime::from_hms_nano(23, 59, 59, 1_999_999_999),
         ];
 
-        for value in values.iter() {
-            p.set_time(0, *value);
-            assert_eq!(p.get_time(0), *value, "value: {}", value);
+        for value in values {
+            p.set_time(0, value);
+            assert_eq!(p.get_time(0), value, "value: {}", value);
         }
     }
 
@@ -290,9 +280,9 @@ mod tests {
             DateTime::parse_from_rfc3339("9999-12-31T23:59:59.999999999+00:00").unwrap(),
         ];
 
-        for value in values.iter() {
-            p.set_datetime(0, *value);
-            assert_eq!(p.get_datetime(0), *value, "value: {}", value);
+        for value in values {
+            p.set_datetime(0, value);
+            assert_eq!(p.get_datetime(0), value, "value: {}", value);
         }
     }
 
@@ -309,9 +299,9 @@ mod tests {
             serde_json::json!({"a": 1}),
         ];
 
-        for value in values.iter() {
-            p.set_json(0, value);
-            assert_eq!(p.get_json(0), *value, "value: {}", value);
+        for value in values {
+            p.set_json(0, &value);
+            assert_eq!(p.get_json(0), value, "value: {}", value);
         }
     }
 }
