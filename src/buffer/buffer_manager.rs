@@ -9,12 +9,10 @@ use std::{
 use crate::{
     file::{block_id::BlockId, file_manager::FileManager},
     log::log_manager::LogManager,
-    util::Result,
+    util::{current_time_millis, waiting_too_long, Result, MAX_WAIT_TIME_MILLIS},
 };
 
 use super::buffer::Buffer;
-
-const MAX_TIME: u128 = 10_000;
 
 pub struct BufferManager {
     m: Mutex<()>,
@@ -78,7 +76,7 @@ impl BufferManager {
 
     pub fn pin(&mut self, block: &BlockId) -> Result<i32> {
         let mut lock = self.m.lock().unwrap();
-        let start_time = Self::current_time_millis();
+        let start_time = current_time_millis();
         let buffer_pool_ptr = &mut self.buffer_pool as *mut Vec<Buffer>;
         loop {
             let buffer_pool = unsafe { &mut *buffer_pool_ptr };
@@ -89,28 +87,16 @@ impl BufferManager {
                 &mut self.unpinned_positions,
                 &mut self.existing_positions,
             )?;
-            if buffer.is_some() || Self::waiting_too_long(start_time) {
+            if buffer.is_some() || waiting_too_long(start_time) {
                 return buffer.ok_or("no available buffer".into());
             }
 
             lock = self
                 .cond
-                .wait_timeout(lock, Duration::from_millis(MAX_TIME as u64))
+                .wait_timeout(lock, Duration::from_millis(MAX_WAIT_TIME_MILLIS as u64))
                 .unwrap()
                 .0;
         }
-    }
-
-    fn current_time_millis() -> u128 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-    }
-
-    fn waiting_too_long(start_time: u128) -> bool {
-        let current_time = Self::current_time_millis();
-        current_time - start_time > MAX_TIME
     }
 
     fn try_to_pin(
