@@ -12,7 +12,7 @@ use crate::{
 
 use super::buffer::Buffer;
 
-const MAX_TIME: u128 = 1_000;
+const MAX_TIME: u128 = 10_000;
 
 pub struct BufferManager {
     m: Mutex<()>,
