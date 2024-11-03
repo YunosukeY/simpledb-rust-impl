@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::{
     file::{block_id::BlockId, file_manager::FileManager, page::Page},
     util::Result,

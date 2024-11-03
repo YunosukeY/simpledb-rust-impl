@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{
     collections::{BTreeSet, HashMap},
     sync::{Arc, Condvar, Mutex},
@@ -83,7 +85,7 @@ impl BufferManager {
             let buffer = Self::try_to_pin(
                 buffer_pool,
                 &mut self.num_available,
-                &block,
+                block,
                 &mut self.unpinned_positions,
                 &mut self.existing_positions,
             )?;
@@ -112,13 +114,13 @@ impl BufferManager {
     }
 
     fn try_to_pin(
-        buffer_pool: &mut Vec<Buffer>,
+        buffer_pool: &mut [Buffer],
         num_available: &mut i32,
         block: &BlockId,
         unpinned_positions: &mut BTreeSet<i32>,
         existing_positions: &mut HashMap<BlockId, i32>,
     ) -> Result<Option<i32>> {
-        let existing_position = Self::existing_position(existing_positions, &block);
+        let existing_position = Self::existing_position(existing_positions, block);
         let unpinned_position = Self::unpinned_position(unpinned_positions);
         if existing_position.is_none() && unpinned_position.is_none() {
             return Ok(None);
@@ -146,11 +148,11 @@ impl BufferManager {
         existing_positions: &HashMap<BlockId, i32>,
         block: &BlockId,
     ) -> Option<i32> {
-        existing_positions.get(block).map(|pos| *pos)
+        existing_positions.get(block).copied()
     }
 
     fn unpinned_position(unpinned_positions: &BTreeSet<i32>) -> Option<i32> {
-        unpinned_positions.iter().next().map(|pos| *pos)
+        unpinned_positions.iter().next().copied()
     }
 }
 
@@ -254,7 +256,7 @@ mod tests {
         let buf = bm.get_mut(2);
         buf.contents().set_string(0, "klmno");
 
-        bm.flush_all(1);
+        bm.flush_all(1).unwrap();
 
         // 0 and 1 are flushed, 2 is not
         assert_eq!(

@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(deprecated)]
+
 use std::str::from_utf8;
 
 use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, TimeZone, Timelike};
@@ -118,28 +121,30 @@ impl Page {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 15];
         let y = u16::from_be_bytes(bytes[0..2].try_into().unwrap()) as i32;
-        let m = bytes[2] as u32;
+        let mo = bytes[2] as u32;
         let d = bytes[3] as u32;
         let h = bytes[4] as u32;
-        let M = bytes[5] as u32;
+        let mi = bytes[5] as u32;
         let s = bytes[6] as u32;
         let f = u32::from_be_bytes(bytes[7..11].try_into().unwrap());
         let tz = i32::from_be_bytes(bytes[11..15].try_into().unwrap());
-        FixedOffset::east(tz).ymd(y, m, d).and_hms_nano(h, M, s, f)
+        FixedOffset::east(tz)
+            .ymd(y, mo, d)
+            .and_hms_nano(h, mi, s, f)
     }
 
     pub fn set_datetime(&mut self, offset: i32, datetime: DateTime<FixedOffset>) {
         let ofs = offset as usize;
         let y = (datetime.year() as u16).to_be_bytes();
-        let m = datetime.month() as u8;
+        let mo = datetime.month() as u8;
         let d = datetime.day() as u8;
         let h = datetime.hour() as u8;
-        let M = datetime.minute() as u8;
+        let mi = datetime.minute() as u8;
         let s = datetime.second() as u8;
         let f = datetime.nanosecond().to_be_bytes();
         let tz = datetime.offset().local_minus_utc().to_be_bytes();
         let bytes = &[
-            y[0], y[1], m, d, h, M, s, f[0], f[1], f[2], f[3], tz[0], tz[1], tz[2], tz[3],
+            y[0], y[1], mo, d, h, mi, s, f[0], f[1], f[2], f[3], tz[0], tz[1], tz[2], tz[3],
         ];
         self.buf[ofs..ofs + 15].copy_from_slice(bytes);
     }
