@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::file::page::Page;
 use crate::{file::block_id::BlockId, util::Result};
 use std::{
@@ -36,7 +38,7 @@ impl FileManager {
                 continue;
             }
             if file_name.unwrap().starts_with("temp") {
-                std::fs::remove_file(file.path());
+                let _ = std::fs::remove_file(file.path());
             }
         }
 
@@ -105,6 +107,7 @@ impl FileManager {
                 .read(true)
                 .write(true)
                 .create(true)
+                .truncate(false)
                 .open(path)
                 .unwrap();
             let mutex = Mutex::new(file);

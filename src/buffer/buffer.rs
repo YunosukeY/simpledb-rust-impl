@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
 use crate::{
@@ -58,7 +60,7 @@ impl Buffer {
         self.block = Some(block);
         let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
         unsafe {
-            (*fm).read(&self.block.as_ref().unwrap(), &mut self.contents)?;
+            (*fm).read(self.block.as_ref().unwrap(), &mut self.contents)?;
         }
         self.pins = 0;
         Ok(())

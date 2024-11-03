@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::sync::{Arc, Mutex};
 
 use crate::{
@@ -17,7 +19,7 @@ pub struct LogManager {
 }
 
 impl LogManager {
-    pub fn new(mut fm: Arc<FileManager>, log_file: String) -> Self {
+    pub fn new(fm: Arc<FileManager>, log_file: String) -> Self {
         let mut log_page = Page::new(fm.block_size());
 
         let fm_ptr = Arc::as_ptr(&fm) as *mut FileManager;
@@ -101,9 +103,9 @@ impl LogManager {
         log_file: &str,
         log_page: &mut Page,
     ) -> Result<BlockId> {
-        let block = fm.append(&log_file)?;
+        let block = fm.append(log_file)?;
         log_page.set_int(0, fm.block_size());
-        fm.write(&block, &log_page)?;
+        fm.write(&block, log_page)?;
         Ok(block)
     }
 }
