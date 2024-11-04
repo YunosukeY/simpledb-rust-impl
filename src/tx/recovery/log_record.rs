@@ -4,7 +4,8 @@ use crate::{file::page::Page, tx::transaction::Transaction};
 
 use super::{
     checkpoint_record::CheckpointRecord, commit_record::CommitRecord,
-    rollback_record::RollbackRecord, set_int_record::SetIntRecord, start_record::StartRecord,
+    rollback_record::RollbackRecord, set_int_record::SetIntRecord,
+    set_string_record::SetStringRecord, start_record::StartRecord,
 };
 
 pub const CHECKPOINT: i32 = 0;
@@ -22,7 +23,6 @@ pub trait LogRecord {
     fn undo(&self, tx: &mut Transaction);
 }
 
-// TODO
 fn create_log_record(bytes: Vec<u8>) -> Option<Box<dyn LogRecord>> {
     let p = Page::from_bytes(&bytes);
     match p.get_int(0) {
@@ -31,6 +31,7 @@ fn create_log_record(bytes: Vec<u8>) -> Option<Box<dyn LogRecord>> {
         COMMIT => Some(Box::new(CommitRecord::new(p))),
         ROLLBACK => Some(Box::new(RollbackRecord::new(p))),
         SET_INT => Some(Box::new(SetIntRecord::new(p))),
+        SET_STRING => Some(Box::new(SetStringRecord::new(p))),
         _ => None,
     }
 }
