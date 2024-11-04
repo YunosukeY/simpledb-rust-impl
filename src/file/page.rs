@@ -159,7 +159,7 @@ impl Page {
     }
 
     pub fn max_length(str: &str) -> i32 {
-        str.as_bytes().len() as i32 + 1
+        str.as_bytes().len() as i32 + 4
     }
 }
 
