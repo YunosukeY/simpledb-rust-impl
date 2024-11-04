@@ -32,7 +32,7 @@ impl LogRecord for RollbackRecord {
         self.tx_num
     }
 
-    fn undo(&self, _tx: Transaction) {}
+    fn undo(&self, _tx: &mut Transaction) {}
 }
 
 impl std::fmt::Display for RollbackRecord {

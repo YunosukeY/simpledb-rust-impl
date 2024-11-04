@@ -4,7 +4,7 @@ use crate::{file::page::Page, tx::transaction::Transaction};
 
 use super::{
     checkpoint_record::CheckpointRecord, commit_record::CommitRecord,
-    rollback_record::RollbackRecord, start_record::StartRecord,
+    rollback_record::RollbackRecord, set_int_record::SetIntRecord, start_record::StartRecord,
 };
 
 pub const CHECKPOINT: i32 = 0;
@@ -19,7 +19,7 @@ pub trait LogRecord {
 
     fn tx_num(&self) -> i32;
 
-    fn undo(&self, tx: Transaction);
+    fn undo(&self, tx: &mut Transaction);
 }
 
 // TODO
@@ -30,6 +30,7 @@ fn create_log_record(bytes: Vec<u8>) -> Option<Box<dyn LogRecord>> {
         START => Some(Box::new(StartRecord::new(p))),
         COMMIT => Some(Box::new(CommitRecord::new(p))),
         ROLLBACK => Some(Box::new(RollbackRecord::new(p))),
+        SET_INT => Some(Box::new(SetIntRecord::new(p))),
         _ => None,
     }
 }

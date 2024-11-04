@@ -28,7 +28,7 @@ impl LogRecord for CheckpointRecord {
         -1
     }
 
-    fn undo(&self, _tx: Transaction) {}
+    fn undo(&self, _tx: &mut Transaction) {}
 }
 
 impl std::fmt::Display for CheckpointRecord {

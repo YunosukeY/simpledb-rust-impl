@@ -20,3 +20,9 @@ impl BlockId {
         self.block_num
     }
 }
+
+impl std::fmt::Display for BlockId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[file {}, block {}]", self.filename, self.block_num)
+    }
+}
