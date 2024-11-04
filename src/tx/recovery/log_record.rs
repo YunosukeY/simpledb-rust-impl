@@ -2,7 +2,10 @@
 
 use crate::{file::page::Page, tx::transaction::Transaction};
 
-use super::{checkpoint_record::CheckpointRecord, commit_record::CommitRecord};
+use super::{
+    checkpoint_record::CheckpointRecord, commit_record::CommitRecord,
+    rollback_record::RollbackRecord,
+};
 
 pub const CHECKPOINT: i32 = 0;
 pub const START: i32 = 1;
@@ -25,6 +28,7 @@ fn create_log_record(bytes: Vec<u8>) -> Option<Box<dyn LogRecord>> {
     match p.get_int(0) {
         CHECKPOINT => Some(Box::new(CheckpointRecord::new())),
         COMMIT => Some(Box::new(CommitRecord::new(p))),
+        ROLLBACK => Some(Box::new(RollbackRecord::new(p))),
         _ => None,
     }
 }
