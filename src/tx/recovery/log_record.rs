@@ -23,7 +23,7 @@ pub trait LogRecord {
     fn undo(&self, tx: &mut Transaction);
 }
 
-fn create_log_record(bytes: Vec<u8>) -> Option<Box<dyn LogRecord>> {
+pub fn create_log_record(bytes: Vec<u8>) -> Option<Box<dyn LogRecord>> {
     let p = Page::from_bytes(&bytes);
     match p.get_int(0) {
         CHECKPOINT => Some(Box::new(CheckpointRecord::new())),
