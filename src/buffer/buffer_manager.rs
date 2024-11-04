@@ -228,19 +228,19 @@ mod tests {
         // 0: modify and set_modified
         bm.pin(&BlockId::new("testfile".to_string(), 0)).unwrap();
         let buf = bm.get_mut(0);
-        buf.contents().set_string(0, "abcde");
+        buf.contents.set_string(0, "abcde");
         buf.set_modified(1, 1);
 
         // 1: modify and set_modified
         bm.pin(&BlockId::new("testfile".to_string(), 1)).unwrap();
         let buf = bm.get_mut(1);
-        buf.contents().set_string(0, "fghij");
+        buf.contents.set_string(0, "fghij");
         buf.set_modified(1, 2);
 
         // 2: just modify, not set_modified
         bm.pin(&BlockId::new("testfile".to_string(), 2)).unwrap();
         let buf = bm.get_mut(2);
-        buf.contents().set_string(0, "klmno");
+        buf.contents.set_string(0, "klmno");
 
         bm.flush_all(1).unwrap();
 

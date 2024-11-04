@@ -11,7 +11,7 @@ use crate::{
 pub struct Buffer {
     fm: Arc<FileManager>,
     lm: Arc<LogManager>,
-    contents: Page,
+    pub contents: Page,
     block: Option<BlockId>,
     pins: i32,
     tx_num: i32,
@@ -30,10 +30,6 @@ impl Buffer {
             tx_num: -1,
             lsn: -1,
         }
-    }
-
-    pub fn contents(&mut self) -> &mut Page {
-        &mut self.contents
     }
 
     pub fn block(&self) -> &Option<BlockId> {
