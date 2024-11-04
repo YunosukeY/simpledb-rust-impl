@@ -13,6 +13,7 @@ use super::{
     commit_record::CommitRecord,
     log_record::{create_log_record, CHECKPOINT, COMMIT, ROLLBACK, START},
     rollback_record::RollbackRecord,
+    set_bytes_record::SetBytesRecord,
     set_int_record::SetIntRecord,
     set_string_record::SetStringRecord,
     start_record::StartRecord,
@@ -63,6 +64,12 @@ impl RecoveryManager {
         let old_value = buff.contents.get_int(offset);
         let block = buff.block().clone().unwrap();
         SetIntRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, old_value)
+    }
+
+    pub fn set_bytes(&mut self, buff: &Buffer, offset: i32, _new_value: &[u8]) -> i32 {
+        let old_value = buff.contents.get_bytes(offset);
+        let block = buff.block().clone().unwrap();
+        SetBytesRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, old_value)
     }
 
     pub fn set_string(&mut self, buff: &Buffer, offset: i32, _new_value: &str) -> i32 {

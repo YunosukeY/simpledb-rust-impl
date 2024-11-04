@@ -96,6 +96,23 @@ impl Transaction {
         buffer.set_modified(self.tx_num, lsn);
     }
 
+    pub fn get_bytes(&mut self, block: &BlockId, offset: i32) -> &[u8] {
+        self.cm.s_lock(block);
+        let buffer = self.my_buffers.buffer(block).unwrap();
+        buffer.contents.get_bytes(offset)
+    }
+
+    pub fn set_bytes(&mut self, block: &BlockId, offset: i32, value: &[u8], log: bool) {
+        self.cm.x_lock(block.clone());
+        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+        let mut lsn = -1;
+        if log {
+            lsn = self.rm.set_bytes(buffer, offset, value);
+        }
+        buffer.contents.set_bytes(offset, value);
+        buffer.set_modified(self.tx_num, lsn);
+    }
+
     pub fn get_string(&mut self, block: &BlockId, offset: i32) -> String {
         self.cm.s_lock(block);
         let buffer = self.my_buffers.buffer(block).unwrap();
