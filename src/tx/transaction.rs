@@ -130,6 +130,23 @@ impl Transaction {
         buffer.set_modified(self.tx_num, lsn);
     }
 
+    pub fn get_bool(&mut self, block: &BlockId, offset: i32) -> bool {
+        self.cm.s_lock(block);
+        let buffer = self.my_buffers.buffer(block).unwrap();
+        buffer.contents.get_bool(offset)
+    }
+
+    pub fn set_bool(&mut self, block: &BlockId, offset: i32, value: bool, log: bool) {
+        self.cm.x_lock(block.clone());
+        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+        let mut lsn = -1;
+        if log {
+            lsn = self.rm.set_bool(buffer, offset, value);
+        }
+        buffer.contents.set_bool(offset, value);
+        buffer.set_modified(self.tx_num, lsn);
+    }
+
     pub fn size(&mut self, filename: &str) -> i32 {
         let dummy = BlockId::new(filename.to_string(), END_OF_FILE);
         self.cm.x_lock(dummy);
