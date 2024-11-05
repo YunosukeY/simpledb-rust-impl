@@ -20,6 +20,7 @@ use super::{
     set_date_record::SetDateRecord,
     set_int_record::SetIntRecord,
     set_string_record::SetStringRecord,
+    set_time_record::SetTimeRecord,
     start_record::StartRecord,
 };
 
@@ -98,6 +99,12 @@ impl RecoveryManager {
         let old_value = buff.contents.get_date(offset);
         let block = buff.block().clone().unwrap();
         SetDateRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
+    }
+
+    pub fn set_time(&mut self, buff: &Buffer, offset: i32, _new_value: &chrono::NaiveTime) -> i32 {
+        let old_value = buff.contents.get_time(offset);
+        let block = buff.block().clone().unwrap();
+        SetTimeRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
     }
 
     fn do_rollback(&mut self, tx: &mut Transaction) {

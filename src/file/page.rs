@@ -121,7 +121,7 @@ impl Page {
         let f = u32::from_be_bytes(bytes[3..7].try_into().unwrap());
         NaiveTime::from_hms_nano(h, m, s, f)
     }
-    pub fn set_time(&mut self, offset: i32, time: NaiveTime) {
+    pub fn set_time(&mut self, offset: i32, time: &NaiveTime) {
         let ofs = offset as usize;
         let h = time.hour() as u8;
         let m = time.minute() as u8;
@@ -282,7 +282,7 @@ mod tests {
         ];
 
         for value in values {
-            p.set_time(0, value);
+            p.set_time(0, &value);
             assert_eq!(p.get_time(0), value, "value: {}", value);
         }
     }
