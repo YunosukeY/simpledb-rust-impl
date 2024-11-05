@@ -35,7 +35,7 @@ pub struct RecoveryManager {
 
 impl RecoveryManager {
     pub fn new(tx_num: i32, mut lm: LogManager, bm: Arc<BufferManager>) -> Self {
-        StartRecord::write_to_log(&mut lm, tx_num);
+        StartRecord::new(tx_num).write_to_log(&mut lm);
         Self { tx_num, lm, bm }
     }
 
@@ -44,7 +44,7 @@ impl RecoveryManager {
         unsafe {
             (*bm).flush_all(self.tx_num).unwrap();
         }
-        let lsn = CommitRecord::write_to_log(&mut self.lm, self.tx_num);
+        let lsn = CommitRecord::new(self.tx_num).write_to_log(&mut self.lm);
         self.lm.flush(lsn).unwrap();
     }
 
@@ -54,7 +54,7 @@ impl RecoveryManager {
         unsafe {
             (*bm).flush_all(self.tx_num).unwrap();
         }
-        let lsn = RollbackRecord::write_to_log(&mut self.lm, self.tx_num);
+        let lsn = RollbackRecord::new(self.tx_num).write_to_log(&mut self.lm);
         self.lm.flush(lsn).unwrap();
     }
 
@@ -64,50 +64,50 @@ impl RecoveryManager {
         unsafe {
             (*bm).flush_all(self.tx_num).unwrap();
         }
-        let lsn = CheckpointRecord::write_to_log(&mut self.lm);
+        let lsn = CheckpointRecord::new().write_to_log(&mut self.lm);
         self.lm.flush(lsn).unwrap();
     }
 
     pub fn set_int(&mut self, buff: &Buffer, offset: i32, _new_value: i32) -> i32 {
         let old_value = buff.contents.get_int(offset);
         let block = buff.block().clone().unwrap();
-        SetIntRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, old_value)
+        SetIntRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut self.lm)
     }
 
     pub fn set_bytes(&mut self, buff: &Buffer, offset: i32, _new_value: &[u8]) -> i32 {
         let old_value = buff.contents.get_bytes(offset);
         let block = buff.block().clone().unwrap();
-        SetBytesRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, old_value)
+        SetBytesRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut self.lm)
     }
 
     pub fn set_bool(&mut self, buff: &Buffer, offset: i32, _new_value: bool) -> i32 {
         let old_value = buff.contents.get_bool(offset);
         let block = buff.block().clone().unwrap();
-        SetBoolRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, old_value)
+        SetBoolRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut self.lm)
     }
 
     pub fn set_string(&mut self, buff: &Buffer, offset: i32, _new_value: &str) -> i32 {
         let old_value = buff.contents.get_string(offset);
         let block = buff.block().clone().unwrap();
-        SetStringRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
+        SetStringRecord::new(self.tx_num, block, offset, &old_value).write_to_log(&mut self.lm)
     }
 
     pub fn set_double(&mut self, buff: &Buffer, offset: i32, _new_value: f64) -> i32 {
         let old_value = buff.contents.get_double(offset);
         let block = buff.block().clone().unwrap();
-        SetDoubleRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, old_value)
+        SetDoubleRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut self.lm)
     }
 
     pub fn set_date(&mut self, buff: &Buffer, offset: i32, _new_value: &chrono::NaiveDate) -> i32 {
         let old_value = buff.contents.get_date(offset);
         let block = buff.block().clone().unwrap();
-        SetDateRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
+        SetDateRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut self.lm)
     }
 
     pub fn set_time(&mut self, buff: &Buffer, offset: i32, _new_value: &chrono::NaiveTime) -> i32 {
         let old_value = buff.contents.get_time(offset);
         let block = buff.block().clone().unwrap();
-        SetTimeRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
+        SetTimeRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut self.lm)
     }
 
     pub fn set_datetime(
@@ -118,13 +118,13 @@ impl RecoveryManager {
     ) -> i32 {
         let old_value = buff.contents.get_datetime(offset);
         let block = buff.block().clone().unwrap();
-        SetDatetimeRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
+        SetDatetimeRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut self.lm)
     }
 
     pub fn set_json(&mut self, buff: &Buffer, offset: i32, _new_value: &serde_json::Value) -> i32 {
         let old_value = buff.contents.get_json(offset);
         let block = buff.block().clone().unwrap();
-        SetJsonRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
+        SetJsonRecord::new(self.tx_num, block, offset, &old_value).write_to_log(&mut self.lm)
     }
 
     fn do_rollback(&mut self, tx: &mut Transaction) {

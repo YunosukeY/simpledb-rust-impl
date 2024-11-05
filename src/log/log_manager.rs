@@ -67,7 +67,7 @@ impl LogManager {
         unsafe { Ok(LogIterator::new(&mut *fm, self.current_block.clone())) }
     }
 
-    pub fn append(&mut self, log_record: Vec<u8>) -> Result<i32> {
+    pub fn append(&mut self, log_record: &[u8]) -> Result<i32> {
         let _lock = self.m.lock().unwrap();
 
         let mut boundary = self.log_page.get_int(0);
@@ -91,7 +91,7 @@ impl LogManager {
         }
 
         let rec_pos = boundary - bytes_needed;
-        self.log_page.set_bytes(rec_pos, &log_record);
+        self.log_page.set_bytes(rec_pos, log_record);
         self.log_page.set_int(0, rec_pos);
 
         self.latest_lsn += 1;
@@ -126,7 +126,7 @@ mod tests {
             vec![0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // append new block
         );
 
-        let lsn1 = lm.append(b"abc".to_vec()).unwrap();
+        let lsn1 = lm.append(b"abc").unwrap();
         assert_eq!(
             std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
             vec![0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // not flushed yet
@@ -138,7 +138,7 @@ mod tests {
             vec![0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 97, 98, 99] // flushed
         );
 
-        let lsn2 = lm.append(b"def".to_vec()).unwrap();
+        let lsn2 = lm.append(b"def").unwrap();
         assert_eq!(
             std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
             vec![0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 97, 98, 99] // not flushed yet
@@ -150,7 +150,7 @@ mod tests {
             vec![0, 0, 0, 6, 0, 0, 0, 0, 0, 3, 100, 101, 102, 0, 0, 0, 3, 97, 98, 99] // flushed
         );
 
-        let lsn3 = lm.append(b"ghi".to_vec()).unwrap();
+        let lsn3 = lm.append(b"ghi").unwrap();
         assert_eq!(
             std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
             vec![

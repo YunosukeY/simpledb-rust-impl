@@ -8,6 +8,7 @@ use crate::{
 
 use super::log_record::{LogRecord, SET_DATETIME};
 
+#[derive(PartialEq, Debug)]
 pub struct SetDatetimeRecord {
     tx_num: i32,
     offset: i32,
@@ -16,7 +17,21 @@ pub struct SetDatetimeRecord {
 }
 
 impl SetDatetimeRecord {
-    pub fn new(page: Page) -> Self {
+    pub fn new(
+        tx_num: i32,
+        block: BlockId,
+        offset: i32,
+        old_value: chrono::DateTime<chrono::FixedOffset>,
+    ) -> Self {
+        Self {
+            tx_num,
+            offset,
+            old_value,
+            block,
+        }
+    }
+
+    pub fn from_page(page: Page) -> Self {
         let tpos = 4;
         let tx_num = page.get_int(tpos);
 
@@ -40,30 +55,29 @@ impl SetDatetimeRecord {
         }
     }
 
-    pub fn write_to_log(
-        lm: &mut LogManager,
-        tx_num: i32,
-        block: BlockId,
-        offset: i32,
-        old_value: &chrono::DateTime<chrono::FixedOffset>,
-    ) -> i32 {
+    pub fn page(&self) -> Page {
         let tpos = 4;
         let fpos = tpos + 4;
-        let bpos = fpos + Page::str_len(block.filename());
+        let bpos = fpos + Page::str_len(self.block.filename());
         let opos = bpos + 4;
         let vpos = opos + 4;
 
-        let rec = vec![0; (vpos + Page::datetime_len(old_value)) as usize];
+        let rec = vec![0; (vpos + Page::datetime_len(&self.old_value)) as usize];
         let mut page = Page::from_bytes(&rec);
 
         page.set_int(0, SET_DATETIME);
-        page.set_int(tpos, tx_num);
-        page.set_string(fpos, block.filename());
-        page.set_int(bpos, block.block_num());
-        page.set_int(opos, offset);
-        page.set_datetime(vpos, old_value);
+        page.set_int(tpos, self.tx_num);
+        page.set_string(fpos, self.block.filename());
+        page.set_int(bpos, self.block.block_num());
+        page.set_int(opos, self.offset);
+        page.set_datetime(vpos, &self.old_value);
 
-        lm.append(rec).unwrap()
+        page
+    }
+
+    pub fn write_to_log(&self, lm: &mut LogManager) -> i32 {
+        let page = self.page();
+        lm.append(page.buffer()).unwrap()
     }
 }
 
@@ -83,12 +97,49 @@ impl LogRecord for SetDatetimeRecord {
     }
 }
 
-impl std::fmt::Debug for SetDatetimeRecord {
+impl std::fmt::Display for SetDatetimeRecord {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
             "<SET_DATETIME {} {} {} {}>",
             self.tx_num, self.block, self.offset, self.old_value
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test() {
+        let record = SetDatetimeRecord::new(
+            1,
+            BlockId::new("filename".to_string(), 2),
+            3,
+            chrono::Utc::now().fixed_offset(),
+        );
+
+        let record2 = SetDatetimeRecord::from_page(record.page());
+
+        assert_eq!(record2, record);
+    }
+
+    #[test]
+    fn to_string() {
+        let record = SetDatetimeRecord::new(
+            1,
+            BlockId::new("filename".to_string(), 2),
+            3,
+            chrono::Utc::now().fixed_offset(),
+        );
+
+        assert_eq!(
+            record.to_string(),
+            format!(
+                "<SET_DATETIME 1 [file filename, block 2] 3 {}>",
+                record.old_value
+            )
+        );
     }
 }

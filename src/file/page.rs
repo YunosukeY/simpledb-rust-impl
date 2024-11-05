@@ -22,6 +22,10 @@ impl Page {
         }
     }
 
+    pub fn buffer(&self) -> &[u8] {
+        &self.buf
+    }
+
     pub fn int_len(_value: i32) -> i32 {
         4
     }

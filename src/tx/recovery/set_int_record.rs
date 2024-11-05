@@ -8,6 +8,7 @@ use crate::{
 
 use super::log_record::{LogRecord, SET_INT};
 
+#[derive(PartialEq, Debug)]
 pub struct SetIntRecord {
     tx_num: i32,
     offset: i32,
@@ -16,7 +17,16 @@ pub struct SetIntRecord {
 }
 
 impl SetIntRecord {
-    pub fn new(page: Page) -> Self {
+    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: i32) -> Self {
+        Self {
+            tx_num,
+            offset,
+            old_value,
+            block,
+        }
+    }
+
+    pub fn from_page(page: Page) -> Self {
         let tpos = 4;
         let tx_num = page.get_int(tpos);
 
@@ -40,30 +50,29 @@ impl SetIntRecord {
         }
     }
 
-    pub fn write_to_log(
-        lm: &mut LogManager,
-        tx_num: i32,
-        block: BlockId,
-        offset: i32,
-        old_value: i32,
-    ) -> i32 {
+    fn page(&self) -> Page {
         let tpos = 4;
         let fpos = tpos + 4;
-        let bpos = fpos + Page::str_len(block.filename());
+        let bpos = fpos + Page::str_len(self.block.filename());
         let opos = bpos + 4;
         let vpos = opos + 4;
 
-        let rec = vec![0; (vpos + Page::int_len(old_value)) as usize];
+        let rec = vec![0; (vpos + Page::int_len(self.old_value)) as usize];
         let mut page = Page::from_bytes(&rec);
 
         page.set_int(0, SET_INT);
-        page.set_int(tpos, tx_num);
-        page.set_string(fpos, block.filename());
-        page.set_int(bpos, block.block_num());
-        page.set_int(opos, offset);
-        page.set_int(vpos, old_value);
+        page.set_int(tpos, self.tx_num);
+        page.set_string(fpos, self.block.filename());
+        page.set_int(bpos, self.block.block_num());
+        page.set_int(opos, self.offset);
+        page.set_int(vpos, self.old_value);
 
-        lm.append(rec).unwrap()
+        page
+    }
+
+    pub fn write_to_log(&self, lm: &mut LogManager) -> i32 {
+        let page = self.page();
+        lm.append(page.buffer()).unwrap()
     }
 }
 
@@ -90,5 +99,29 @@ impl std::fmt::Display for SetIntRecord {
             "<SETINT {} {} {} {}>",
             self.tx_num, self.block, self.offset, self.old_value
         )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test() {
+        let record = SetIntRecord::new(1, BlockId::new("filename".to_string(), 2), 3, 4);
+
+        let record2 = SetIntRecord::from_page(record.page());
+
+        assert_eq!(record, record2);
+    }
+
+    #[test]
+    fn to_string() {
+        let record = SetIntRecord::new(1, BlockId::new("filename".to_string(), 2), 3, 4);
+
+        assert_eq!(
+            record.to_string(),
+            "<SETINT 1 [file filename, block 2] 3 4>"
+        );
     }
 }

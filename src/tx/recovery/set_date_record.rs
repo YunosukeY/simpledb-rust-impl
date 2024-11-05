@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(deprecated)]
 
 use crate::{
     file::{block_id::BlockId, page::Page},
@@ -8,6 +9,7 @@ use crate::{
 
 use super::log_record::{LogRecord, SET_DATE};
 
+#[derive(PartialEq, Debug)]
 pub struct SetDateRecord {
     tx_num: i32,
     offset: i32,
@@ -16,7 +18,16 @@ pub struct SetDateRecord {
 }
 
 impl SetDateRecord {
-    pub fn new(page: Page) -> Self {
+    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: chrono::NaiveDate) -> Self {
+        Self {
+            tx_num,
+            offset,
+            old_value,
+            block,
+        }
+    }
+
+    pub fn from_page(page: Page) -> Self {
         let tpos = 4;
         let tx_num = page.get_int(tpos);
 
@@ -40,30 +51,29 @@ impl SetDateRecord {
         }
     }
 
-    pub fn write_to_log(
-        lm: &mut LogManager,
-        tx_num: i32,
-        block: BlockId,
-        offset: i32,
-        old_value: &chrono::NaiveDate,
-    ) -> i32 {
+    pub fn page(&self) -> Page {
         let tpos = 4;
         let fpos = tpos + 4;
-        let bpos = fpos + Page::str_len(block.filename());
+        let bpos = fpos + Page::str_len(self.block.filename());
         let opos = bpos + 4;
         let vpos = opos + 4;
 
-        let rec = vec![0; (vpos + Page::date_len(old_value)) as usize];
+        let rec = vec![0; (vpos + Page::date_len(&self.old_value)) as usize];
         let mut page = Page::from_bytes(&rec);
 
         page.set_int(0, SET_DATE);
-        page.set_int(tpos, tx_num);
-        page.set_string(fpos, block.filename());
-        page.set_int(bpos, block.block_num());
-        page.set_int(opos, offset);
-        page.set_date(vpos, old_value);
+        page.set_int(tpos, self.tx_num);
+        page.set_string(fpos, self.block.filename());
+        page.set_int(bpos, self.block.block_num());
+        page.set_int(opos, self.offset);
+        page.set_date(vpos, &self.old_value);
 
-        lm.append(rec).unwrap()
+        page
+    }
+
+    pub fn write_to_log(&self, lm: &mut LogManager) -> i32 {
+        let page = self.page();
+        lm.append(page.buffer()).unwrap()
     }
 }
 
@@ -80,5 +90,49 @@ impl LogRecord for SetDateRecord {
         tx.pin(&self.block);
         tx.set_date(&self.block, self.offset, &self.old_value, false);
         tx.unpin(&self.block);
+    }
+}
+
+impl std::fmt::Display for SetDateRecord {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "<SET_DATE {} {} {} {:?}>",
+            self.tx_num, self.block, self.offset, self.old_value
+        )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test() {
+        let record = SetDateRecord::new(
+            1,
+            BlockId::new("filename".to_string(), 2),
+            3,
+            chrono::NaiveDate::from_ymd(2021, 1, 1),
+        );
+
+        let record2 = SetDateRecord::from_page(record.page());
+
+        assert_eq!(record, record2);
+    }
+
+    #[test]
+    fn to_string() {
+        let record = SetDateRecord::new(
+            1,
+            BlockId::new("filename".to_string(), 2),
+            3,
+            chrono::NaiveDate::from_ymd(2021, 1, 1),
+        );
+
+        assert_eq!(
+            record.to_string(),
+            "<SET_DATE 1 [file filename, block 2] 3 2021-01-01>"
+        );
     }
 }
