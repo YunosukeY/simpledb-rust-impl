@@ -5,6 +5,7 @@ pub mod recovery_manager;
 pub mod rollback_record;
 pub mod set_bool_record;
 pub mod set_bytes_record;
+pub mod set_double_record;
 pub mod set_int_record;
 pub mod set_string_record;
 pub mod start_record;

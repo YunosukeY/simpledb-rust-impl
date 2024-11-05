@@ -5,7 +5,10 @@ use std::{sync::Arc, vec};
 use crate::{
     buffer::{buffer::Buffer, buffer_manager::BufferManager},
     log::log_manager::LogManager,
-    tx::{recovery::set_bool_record::SetBoolRecord, transaction::Transaction},
+    tx::{
+        recovery::{set_bool_record::SetBoolRecord, set_double_record::SetDoubleRecord},
+        transaction::Transaction,
+    },
 };
 
 use super::{
@@ -82,6 +85,12 @@ impl RecoveryManager {
         let old_value = buff.contents.get_string(offset);
         let block = buff.block().clone().unwrap();
         SetStringRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
+    }
+
+    pub fn set_double(&mut self, buff: &Buffer, offset: i32, _new_value: f64) -> i32 {
+        let old_value = buff.contents.get_double(offset);
+        let block = buff.block().clone().unwrap();
+        SetDoubleRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, old_value)
     }
 
     fn do_rollback(&mut self, tx: &mut Transaction) {
