@@ -23,7 +23,7 @@ impl SetIntRecord {
         let fpos = tpos + 4;
         let filename = page.get_string(fpos);
 
-        let bpos = fpos + Page::max_length(&filename);
+        let bpos = fpos + Page::str_len(&filename);
         let block_num = page.get_int(bpos);
 
         let opos = bpos + 4;
@@ -49,11 +49,11 @@ impl SetIntRecord {
     ) -> i32 {
         let tpos = 4;
         let fpos = tpos + 4;
-        let bpos = fpos + Page::max_length(block.filename());
+        let bpos = fpos + Page::str_len(block.filename());
         let opos = bpos + 4;
         let vpos = opos + 4;
 
-        let rec = vec![0; vpos as usize + 4];
+        let rec = vec![0; (vpos + Page::int_len(old_value)) as usize];
         let mut page = Page::from_bytes(&rec);
 
         page.set_int(0, SET_INT);

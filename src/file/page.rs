@@ -22,25 +22,29 @@ impl Page {
         }
     }
 
+    pub fn int_len(_value: i32) -> i32 {
+        4
+    }
     pub fn get_int(&self, offset: i32) -> i32 {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 4];
         let a = bytes.try_into().unwrap();
         i32::from_be_bytes(a)
     }
-
     pub fn set_int(&mut self, offset: i32, value: i32) {
         let ofs = offset as usize;
         self.buf[ofs..ofs + 4].copy_from_slice(&value.to_be_bytes());
     }
 
+    pub fn bytes_len(bytes: &[u8]) -> i32 {
+        bytes.len() as i32 + 4
+    }
     pub fn get_bytes(&self, offset: i32) -> &[u8] {
         let len = self.get_int(offset);
 
         let ofs = offset as usize + 4;
         &self.buf[ofs..ofs + len as usize]
     }
-
     pub fn set_bytes(&mut self, offset: i32, bytes: &[u8]) {
         let len = bytes.len() as i32;
         self.set_int(offset, len);
@@ -49,36 +53,45 @@ impl Page {
         self.buf[ofs..ofs + bytes.len()].copy_from_slice(bytes);
     }
 
+    pub fn str_len(str: &str) -> i32 {
+        Self::bytes_len(str.as_bytes())
+    }
     pub fn get_string(&self, offset: i32) -> String {
         let bytes = self.get_bytes(offset);
         from_utf8(bytes).unwrap().to_string()
     }
-
     pub fn set_string(&mut self, offset: i32, s: &str) {
         let bytes: &[u8] = s.as_bytes();
         self.set_bytes(offset, bytes);
     }
 
+    pub fn bool_len(_value: bool) -> i32 {
+        1
+    }
     pub fn get_bool(&self, offset: i32) -> bool {
         self.buf[offset as usize] != 0
     }
-
     pub fn set_bool(&mut self, offset: i32, b: bool) {
         self.buf[offset as usize] = b as u8;
     }
 
+    pub fn double_len(_value: f64) -> i32 {
+        8
+    }
     pub fn get_double(&self, offset: i32) -> f64 {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 8];
         let a = bytes.try_into().unwrap();
         f64::from_be_bytes(a)
     }
-
     pub fn set_double(&mut self, offset: i32, value: f64) {
         let ofs = offset as usize;
         self.buf[ofs..ofs + 8].copy_from_slice(&value.to_be_bytes());
     }
 
+    pub fn date_len(_value: &NaiveDate) -> i32 {
+        6
+    }
     pub fn get_date(&self, offset: i32) -> NaiveDate {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 6];
@@ -87,7 +100,6 @@ impl Page {
         let d = bytes[5] as u32;
         NaiveDate::from_ymd(y, m, d)
     }
-
     pub fn set_date(&mut self, offset: i32, date: NaiveDate) {
         let ofs = offset as usize;
         let y = date.year().to_be_bytes();
@@ -97,6 +109,9 @@ impl Page {
         self.buf[ofs..ofs + 6].copy_from_slice(bytes);
     }
 
+    pub fn time_len(_value: &NaiveTime) -> i32 {
+        7
+    }
     pub fn get_time(&self, offset: i32) -> NaiveTime {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 7];
@@ -106,7 +121,6 @@ impl Page {
         let f = u32::from_be_bytes(bytes[3..7].try_into().unwrap());
         NaiveTime::from_hms_nano(h, m, s, f)
     }
-
     pub fn set_time(&mut self, offset: i32, time: NaiveTime) {
         let ofs = offset as usize;
         let h = time.hour() as u8;
@@ -117,6 +131,9 @@ impl Page {
         self.buf[ofs..ofs + 7].copy_from_slice(bytes);
     }
 
+    pub fn datetime_len(_value: &DateTime<FixedOffset>) -> i32 {
+        15
+    }
     pub fn get_datetime(&self, offset: i32) -> DateTime<FixedOffset> {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 15];
@@ -132,7 +149,6 @@ impl Page {
             .ymd(y, mo, d)
             .and_hms_nano(h, mi, s, f)
     }
-
     pub fn set_datetime(&mut self, offset: i32, datetime: DateTime<FixedOffset>) {
         let ofs = offset as usize;
         let y = (datetime.year() as u16).to_be_bytes();
@@ -149,17 +165,15 @@ impl Page {
         self.buf[ofs..ofs + 15].copy_from_slice(bytes);
     }
 
+    pub fn json_len(json: &serde_json::Value) -> i32 {
+        Self::str_len(&json.to_string())
+    }
     pub fn get_json(&self, offset: i32) -> serde_json::Value {
         let s = self.get_string(offset);
         serde_json::from_str(&s).unwrap()
     }
-
     pub fn set_json(&mut self, offset: i32, json: &serde_json::Value) {
         self.set_string(offset, &json.to_string());
-    }
-
-    pub fn max_length(str: &str) -> i32 {
-        str.as_bytes().len() as i32 + 4
     }
 }
 
