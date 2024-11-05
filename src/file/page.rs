@@ -149,7 +149,7 @@ impl Page {
             .ymd(y, mo, d)
             .and_hms_nano(h, mi, s, f)
     }
-    pub fn set_datetime(&mut self, offset: i32, datetime: DateTime<FixedOffset>) {
+    pub fn set_datetime(&mut self, offset: i32, datetime: &DateTime<FixedOffset>) {
         let ofs = offset as usize;
         let y = (datetime.year() as u16).to_be_bytes();
         let mo = datetime.month() as u8;
@@ -300,7 +300,7 @@ mod tests {
         ];
 
         for value in values {
-            p.set_datetime(0, value);
+            p.set_datetime(0, &value);
             assert_eq!(p.get_datetime(0), value, "value: {}", value);
         }
     }

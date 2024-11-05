@@ -6,7 +6,10 @@ use crate::{
     buffer::{buffer::Buffer, buffer_manager::BufferManager},
     log::log_manager::LogManager,
     tx::{
-        recovery::{set_bool_record::SetBoolRecord, set_double_record::SetDoubleRecord},
+        recovery::{
+            set_bool_record::SetBoolRecord, set_datetime_record::SetDatetimeRecord,
+            set_double_record::SetDoubleRecord,
+        },
         transaction::Transaction,
     },
 };
@@ -105,6 +108,17 @@ impl RecoveryManager {
         let old_value = buff.contents.get_time(offset);
         let block = buff.block().clone().unwrap();
         SetTimeRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
+    }
+
+    pub fn set_datetime(
+        &mut self,
+        buff: &Buffer,
+        offset: i32,
+        _new_value: &chrono::DateTime<chrono::FixedOffset>,
+    ) -> i32 {
+        let old_value = buff.contents.get_datetime(offset);
+        let block = buff.block().clone().unwrap();
+        SetDatetimeRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
     }
 
     fn do_rollback(&mut self, tx: &mut Transaction) {
