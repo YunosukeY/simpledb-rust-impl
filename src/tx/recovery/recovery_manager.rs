@@ -17,6 +17,7 @@ use super::{
     log_record::{create_log_record, CHECKPOINT, COMMIT, ROLLBACK, START},
     rollback_record::RollbackRecord,
     set_bytes_record::SetBytesRecord,
+    set_date_record::SetDateRecord,
     set_int_record::SetIntRecord,
     set_string_record::SetStringRecord,
     start_record::StartRecord,
@@ -91,6 +92,12 @@ impl RecoveryManager {
         let old_value = buff.contents.get_double(offset);
         let block = buff.block().clone().unwrap();
         SetDoubleRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, old_value)
+    }
+
+    pub fn set_date(&mut self, buff: &Buffer, offset: i32, _new_value: &chrono::NaiveDate) -> i32 {
+        let old_value = buff.contents.get_date(offset);
+        let block = buff.block().clone().unwrap();
+        SetDateRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
     }
 
     fn do_rollback(&mut self, tx: &mut Transaction) {

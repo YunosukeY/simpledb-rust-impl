@@ -100,7 +100,7 @@ impl Page {
         let d = bytes[5] as u32;
         NaiveDate::from_ymd(y, m, d)
     }
-    pub fn set_date(&mut self, offset: i32, date: NaiveDate) {
+    pub fn set_date(&mut self, offset: i32, date: &NaiveDate) {
         let ofs = offset as usize;
         let y = date.year().to_be_bytes();
         let m = date.month() as u8;
@@ -265,7 +265,7 @@ mod tests {
         ];
 
         for value in values {
-            p.set_date(0, value);
+            p.set_date(0, &value);
             assert_eq!(p.get_date(0), value, "value: {}", value);
         }
     }
