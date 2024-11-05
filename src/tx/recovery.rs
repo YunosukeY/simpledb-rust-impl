@@ -9,6 +9,7 @@ pub mod set_date_record;
 pub mod set_datetime_record;
 pub mod set_double_record;
 pub mod set_int_record;
+pub mod set_json_record;
 pub mod set_string_record;
 pub mod set_time_record;
 pub mod start_record;

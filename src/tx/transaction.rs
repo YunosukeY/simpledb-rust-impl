@@ -217,6 +217,22 @@ impl Transaction {
         buffer.set_modified(self.tx_num, lsn);
     }
 
+    pub fn get_json(&mut self, block: &BlockId, offset: i32) -> serde_json::Value {
+        self.cm.s_lock(block);
+        let buffer = self.my_buffers.buffer(block).unwrap();
+        buffer.contents.get_json(offset)
+    }
+    pub fn set_json(&mut self, block: &BlockId, offset: i32, value: &serde_json::Value, log: bool) {
+        self.cm.x_lock(block.clone());
+        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+        let mut lsn = -1;
+        if log {
+            lsn = self.rm.set_json(buffer, offset, value);
+        }
+        buffer.contents.set_json(offset, value);
+        buffer.set_modified(self.tx_num, lsn);
+    }
+
     pub fn size(&mut self, filename: &str) -> i32 {
         let dummy = BlockId::new(filename.to_string(), END_OF_FILE);
         self.cm.x_lock(dummy);

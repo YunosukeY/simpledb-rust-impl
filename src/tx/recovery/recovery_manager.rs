@@ -8,7 +8,7 @@ use crate::{
     tx::{
         recovery::{
             set_bool_record::SetBoolRecord, set_datetime_record::SetDatetimeRecord,
-            set_double_record::SetDoubleRecord,
+            set_double_record::SetDoubleRecord, set_json_record::SetJsonRecord,
         },
         transaction::Transaction,
     },
@@ -119,6 +119,12 @@ impl RecoveryManager {
         let old_value = buff.contents.get_datetime(offset);
         let block = buff.block().clone().unwrap();
         SetDatetimeRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
+    }
+
+    pub fn set_json(&mut self, buff: &Buffer, offset: i32, _new_value: &serde_json::Value) -> i32 {
+        let old_value = buff.contents.get_json(offset);
+        let block = buff.block().clone().unwrap();
+        SetJsonRecord::write_to_log(&mut self.lm, self.tx_num, block, offset, &old_value)
     }
 
     fn do_rollback(&mut self, tx: &mut Transaction) {
