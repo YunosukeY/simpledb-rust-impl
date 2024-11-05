@@ -80,12 +80,12 @@ impl Transaction {
     }
 
     pub fn get_int(&mut self, block: &BlockId, offset: i32) -> i32 {
-        self.cm.s_lock(block);
+        self.cm.s_lock(block).unwrap();
         let buffer = self.my_buffers.buffer(block).unwrap();
         buffer.contents.get_int(offset)
     }
     pub fn set_int(&mut self, block: &BlockId, offset: i32, value: i32, log: bool) {
-        self.cm.x_lock(block.clone());
+        self.cm.x_lock(block).unwrap();
         let buffer = self.my_buffers.buffer_mut(block).unwrap();
         let mut lsn = -1;
         if log {
@@ -96,12 +96,12 @@ impl Transaction {
     }
 
     pub fn get_bytes(&mut self, block: &BlockId, offset: i32) -> &[u8] {
-        self.cm.s_lock(block);
+        self.cm.s_lock(block).unwrap();
         let buffer = self.my_buffers.buffer(block).unwrap();
         buffer.contents.get_bytes(offset)
     }
     pub fn set_bytes(&mut self, block: &BlockId, offset: i32, value: &[u8], log: bool) {
-        self.cm.x_lock(block.clone());
+        self.cm.x_lock(block).unwrap();
         let buffer = self.my_buffers.buffer_mut(block).unwrap();
         let mut lsn = -1;
         if log {
@@ -112,12 +112,12 @@ impl Transaction {
     }
 
     pub fn get_string(&mut self, block: &BlockId, offset: i32) -> String {
-        self.cm.s_lock(block);
+        self.cm.s_lock(block).unwrap();
         let buffer = self.my_buffers.buffer(block).unwrap();
         buffer.contents.get_string(offset)
     }
     pub fn set_string(&mut self, block: &BlockId, offset: i32, value: &str, log: bool) {
-        self.cm.x_lock(block.clone());
+        self.cm.x_lock(block).unwrap();
         let buffer = self.my_buffers.buffer_mut(block).unwrap();
         let mut lsn = -1;
         if log {
@@ -128,12 +128,12 @@ impl Transaction {
     }
 
     pub fn get_bool(&mut self, block: &BlockId, offset: i32) -> bool {
-        self.cm.s_lock(block);
+        self.cm.s_lock(block).unwrap();
         let buffer = self.my_buffers.buffer(block).unwrap();
         buffer.contents.get_bool(offset)
     }
     pub fn set_bool(&mut self, block: &BlockId, offset: i32, value: bool, log: bool) {
-        self.cm.x_lock(block.clone());
+        self.cm.x_lock(block).unwrap();
         let buffer = self.my_buffers.buffer_mut(block).unwrap();
         let mut lsn = -1;
         if log {
@@ -144,12 +144,12 @@ impl Transaction {
     }
 
     pub fn get_double(&mut self, block: &BlockId, offset: i32) -> f64 {
-        self.cm.s_lock(block);
+        self.cm.s_lock(block).unwrap();
         let buffer = self.my_buffers.buffer(block).unwrap();
         buffer.contents.get_double(offset)
     }
     pub fn set_double(&mut self, block: &BlockId, offset: i32, value: f64, log: bool) {
-        self.cm.x_lock(block.clone());
+        self.cm.x_lock(block).unwrap();
         let buffer = self.my_buffers.buffer_mut(block).unwrap();
         let mut lsn = -1;
         if log {
@@ -160,12 +160,12 @@ impl Transaction {
     }
 
     pub fn get_date(&mut self, block: &BlockId, offset: i32) -> chrono::NaiveDate {
-        self.cm.s_lock(block);
+        self.cm.s_lock(block).unwrap();
         let buffer = self.my_buffers.buffer(block).unwrap();
         buffer.contents.get_date(offset)
     }
     pub fn set_date(&mut self, block: &BlockId, offset: i32, value: &chrono::NaiveDate, log: bool) {
-        self.cm.x_lock(block.clone());
+        self.cm.x_lock(block).unwrap();
         let buffer = self.my_buffers.buffer_mut(block).unwrap();
         let mut lsn = -1;
         if log {
@@ -176,12 +176,12 @@ impl Transaction {
     }
 
     pub fn get_time(&mut self, block: &BlockId, offset: i32) -> chrono::NaiveTime {
-        self.cm.s_lock(block);
+        self.cm.s_lock(block).unwrap();
         let buffer = self.my_buffers.buffer(block).unwrap();
         buffer.contents.get_time(offset)
     }
     pub fn set_time(&mut self, block: &BlockId, offset: i32, value: &chrono::NaiveTime, log: bool) {
-        self.cm.x_lock(block.clone());
+        self.cm.x_lock(block).unwrap();
         let buffer = self.my_buffers.buffer_mut(block).unwrap();
         let mut lsn = -1;
         if log {
@@ -196,7 +196,7 @@ impl Transaction {
         block: &BlockId,
         offset: i32,
     ) -> chrono::DateTime<chrono::FixedOffset> {
-        self.cm.s_lock(block);
+        self.cm.s_lock(block).unwrap();
         let buffer = self.my_buffers.buffer(block).unwrap();
         buffer.contents.get_datetime(offset)
     }
@@ -207,7 +207,7 @@ impl Transaction {
         value: &chrono::DateTime<chrono::FixedOffset>,
         log: bool,
     ) {
-        self.cm.x_lock(block.clone());
+        self.cm.x_lock(block).unwrap();
         let buffer = self.my_buffers.buffer_mut(block).unwrap();
         let mut lsn = -1;
         if log {
@@ -218,12 +218,12 @@ impl Transaction {
     }
 
     pub fn get_json(&mut self, block: &BlockId, offset: i32) -> serde_json::Value {
-        self.cm.s_lock(block);
+        self.cm.s_lock(block).unwrap();
         let buffer = self.my_buffers.buffer(block).unwrap();
         buffer.contents.get_json(offset)
     }
     pub fn set_json(&mut self, block: &BlockId, offset: i32, value: &serde_json::Value, log: bool) {
-        self.cm.x_lock(block.clone());
+        self.cm.x_lock(block).unwrap();
         let buffer = self.my_buffers.buffer_mut(block).unwrap();
         let mut lsn = -1;
         if log {
@@ -235,13 +235,13 @@ impl Transaction {
 
     pub fn size(&mut self, filename: &str) -> i32 {
         let dummy = BlockId::new(filename.to_string(), END_OF_FILE);
-        self.cm.x_lock(dummy);
+        self.cm.x_lock(&dummy).unwrap();
         self.fm.length(filename).unwrap()
     }
 
     pub fn append(&mut self, filename: &str) -> BlockId {
         let dummy = BlockId::new(filename.to_string(), END_OF_FILE);
-        self.cm.x_lock(dummy);
+        self.cm.x_lock(&dummy).unwrap();
         self.fm.append(filename).unwrap()
     }
 

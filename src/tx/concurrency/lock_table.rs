@@ -85,3 +85,77 @@ impl LockTable {
         locks.get(block).map_or(0, |v| *v)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slock_then_slock() {
+        let mut lock_table = LockTable::new();
+        let block = BlockId::new("file".to_string(), 0);
+
+        lock_table.s_lock(&block).unwrap();
+
+        let res = lock_table.s_lock(&block);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn slock_then_xlock() {
+        let mut lock_table = LockTable::new();
+        let block = BlockId::new("file".to_string(), 0);
+
+        lock_table.x_lock(&block).unwrap();
+
+        let res = lock_table.s_lock(&block);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn xlock_then_slock() {
+        let mut lock_table = LockTable::new();
+        let block = BlockId::new("file".to_string(), 0);
+
+        lock_table.x_lock(&block).unwrap();
+
+        let res = lock_table.s_lock(&block);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn xlock_then_xlock() {
+        let mut lock_table = LockTable::new();
+        let block = BlockId::new("file".to_string(), 0);
+
+        lock_table.x_lock(&block).unwrap();
+
+        let res = lock_table.x_lock(&block);
+        assert!(res.is_ok()); // x_lock同士の競合はConcurrencyManagerレベルで解決される
+    }
+
+    #[test]
+    fn slock_then_unlock() {
+        let mut lock_table = LockTable::new();
+        let block = BlockId::new("file".to_string(), 0);
+
+        lock_table.s_lock(&block).unwrap();
+        assert_eq!(LockTable::lock_value(&lock_table.locks, &block), 1);
+
+        lock_table.unlock(&block);
+
+        assert_eq!(LockTable::lock_value(&lock_table.locks, &block), 0);
+    }
+
+    #[test]
+    fn xlock_then_unlock() {
+        let mut lock_table = LockTable::new();
+        let block = BlockId::new("file".to_string(), 0);
+
+        lock_table.x_lock(&block).unwrap();
+        assert_eq!(LockTable::lock_value(&lock_table.locks, &block), -1);
+
+        lock_table.unlock(&block);
+        assert_eq!(LockTable::lock_value(&lock_table.locks, &block), 0);
+    }
+}

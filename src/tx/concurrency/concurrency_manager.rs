@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::LazyLock};
 
-use crate::file::block_id::BlockId;
+use crate::{file::block_id::BlockId, util::Result};
 
 use super::lock_table::LockTable;
 
@@ -19,25 +19,27 @@ impl ConcurrencyManager {
         }
     }
 
-    pub fn s_lock(&mut self, block: &BlockId) {
+    pub fn s_lock(&mut self, block: &BlockId) -> Result<()> {
         if !self.locks.contains_key(block) {
             unsafe {
                 let lock_table = &*LOCK_TABLE as *const LockTable as *mut LockTable;
-                (*lock_table).s_lock(block).unwrap();
+                (*lock_table).s_lock(block)?;
             }
             self.locks.insert(block.clone(), 'S');
         }
+        Ok(())
     }
 
-    pub fn x_lock(&mut self, block: BlockId) {
-        if !self.has_x_lock(&block) {
-            self.s_lock(&block);
+    pub fn x_lock(&mut self, block: &BlockId) -> Result<()> {
+        if !self.has_x_lock(block) {
+            self.s_lock(block)?;
             unsafe {
                 let lock_table = &*LOCK_TABLE as *const LockTable as *mut LockTable;
-                (*lock_table).x_lock(&block).unwrap();
+                (*lock_table).x_lock(block)?;
             }
-            self.locks.insert(block, 'X');
+            self.locks.insert(block.clone(), 'X');
         }
+        Ok(())
     }
 
     pub fn release(&mut self) {
@@ -52,5 +54,22 @@ impl ConcurrencyManager {
 
     fn has_x_lock(&self, block: &BlockId) -> bool {
         self.locks.get(block).map_or(false, |&lock| lock == 'X')
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn xlock_then_xlock() {
+        let mut cm1 = ConcurrencyManager::new();
+        let mut cm2 = ConcurrencyManager::new();
+        let block = BlockId::new("file".to_string(), 0);
+
+        cm1.x_lock(&block).unwrap();
+
+        let res = cm2.x_lock(&block);
+        assert!(res.is_err());
     }
 }
