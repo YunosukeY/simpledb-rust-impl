@@ -12,6 +12,7 @@ use crate::{
         },
         transaction::Transaction,
     },
+    util::Result,
 };
 
 use super::{
@@ -38,22 +39,23 @@ impl RecoveryManager {
         {
             let lm = Arc::as_ptr(&lm) as *mut LogManager;
             unsafe {
-                StartRecord::new(tx_num).write_to_log(&mut *lm);
+                StartRecord::new(tx_num).write_to_log(&mut *lm).unwrap();
             }
         }
         Self { tx_num, lm, bm }
     }
 
-    pub fn commit(&mut self) {
+    pub fn commit(&mut self) -> Result<()> {
         let bm = Arc::as_ptr(&self.bm) as *mut BufferManager;
         unsafe {
-            (*bm).flush_all(self.tx_num).unwrap();
+            (*bm).flush_all(self.tx_num)?;
         }
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe {
-            let lsn = CommitRecord::new(self.tx_num).write_to_log(&mut *lm);
-            (*lm).flush(lsn).unwrap();
+            let lsn = CommitRecord::new(self.tx_num).write_to_log(&mut *lm)?;
+            (*lm).flush(lsn)?;
         }
+        Ok(())
     }
 
     pub fn rollback(&mut self, tx: &mut Transaction) {
@@ -64,7 +66,9 @@ impl RecoveryManager {
         }
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe {
-            let lsn = RollbackRecord::new(self.tx_num).write_to_log(&mut *lm);
+            let lsn = RollbackRecord::new(self.tx_num)
+                .write_to_log(&mut *lm)
+                .unwrap();
             (*lm).flush(lsn).unwrap();
         }
     }
@@ -77,33 +81,33 @@ impl RecoveryManager {
         }
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe {
-            let lsn = CheckpointRecord::new().write_to_log(&mut *lm);
+            let lsn = CheckpointRecord::new().write_to_log(&mut *lm).unwrap();
             (*lm).flush(lsn).unwrap();
         }
     }
 
-    pub fn set_int(&mut self, buff: &Buffer, offset: i32, _new_value: i32) -> i32 {
+    pub fn set_int(&mut self, buff: &Buffer, offset: i32, _new_value: i32) -> Result<i32> {
         let old_value = buff.contents.get_int(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe { SetIntRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut *lm) }
     }
 
-    pub fn set_bytes(&mut self, buff: &Buffer, offset: i32, _new_value: &[u8]) -> i32 {
+    pub fn set_bytes(&mut self, buff: &Buffer, offset: i32, _new_value: &[u8]) -> Result<i32> {
         let old_value = buff.contents.get_bytes(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe { SetBytesRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut *lm) }
     }
 
-    pub fn set_bool(&mut self, buff: &Buffer, offset: i32, _new_value: bool) -> i32 {
+    pub fn set_bool(&mut self, buff: &Buffer, offset: i32, _new_value: bool) -> Result<i32> {
         let old_value = buff.contents.get_bool(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe { SetBoolRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut *lm) }
     }
 
-    pub fn set_string(&mut self, buff: &Buffer, offset: i32, _new_value: &str) -> i32 {
+    pub fn set_string(&mut self, buff: &Buffer, offset: i32, _new_value: &str) -> Result<i32> {
         let old_value = buff.contents.get_string(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
@@ -112,7 +116,7 @@ impl RecoveryManager {
         }
     }
 
-    pub fn set_double(&mut self, buff: &Buffer, offset: i32, _new_value: f64) -> i32 {
+    pub fn set_double(&mut self, buff: &Buffer, offset: i32, _new_value: f64) -> Result<i32> {
         let old_value = buff.contents.get_double(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
@@ -126,7 +130,7 @@ impl RecoveryManager {
         buff: &Buffer,
         offset: i32,
         _new_value: &Option<chrono::NaiveDate>,
-    ) -> i32 {
+    ) -> Result<i32> {
         let old_value = buff.contents.get_date(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
@@ -138,7 +142,7 @@ impl RecoveryManager {
         buff: &Buffer,
         offset: i32,
         _new_value: &Option<chrono::NaiveTime>,
-    ) -> i32 {
+    ) -> Result<i32> {
         let old_value = buff.contents.get_time(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
@@ -150,7 +154,7 @@ impl RecoveryManager {
         buff: &Buffer,
         offset: i32,
         _new_value: &Option<chrono::DateTime<chrono::FixedOffset>>,
-    ) -> i32 {
+    ) -> Result<i32> {
         let old_value = buff.contents.get_datetime(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
@@ -164,7 +168,7 @@ impl RecoveryManager {
         buff: &Buffer,
         offset: i32,
         _new_value: &Option<serde_json::Value>,
-    ) -> i32 {
+    ) -> Result<i32> {
         let old_value = buff.contents.get_json(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;

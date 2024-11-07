@@ -23,21 +23,15 @@ impl BufferList {
         }
     }
 
-    pub fn buffer(&self, block: &BlockId) -> Option<&Buffer> {
-        let i = self.buffers.get(block);
-        match i {
-            Some(i) => Some(self.bm.get(*i)),
-            None => None,
-        }
+    pub fn buffer(&self, block: &BlockId) -> &Buffer {
+        let i = self.buffers.get(block).unwrap();
+        self.bm.get(*i)
     }
 
-    pub fn buffer_mut(&mut self, block: &BlockId) -> Option<&mut Buffer> {
-        let i = self.buffers.get(block);
+    pub fn buffer_mut(&mut self, block: &BlockId) -> &mut Buffer {
+        let i = self.buffers.get(block).unwrap();
         let bm = Arc::as_ptr(&self.bm) as *mut BufferManager;
-        match i {
-            Some(i) => unsafe { return Some((*bm).get_mut(*i)) },
-            None => None,
-        }
+        unsafe { return (*bm).get_mut(*i) }
     }
 
     pub fn pin(&mut self, block: BlockId) -> Result<()> {

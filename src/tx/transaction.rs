@@ -7,6 +7,7 @@ use crate::{
     buffer::buffer_manager::BufferManager,
     file::{block_id::BlockId, file_manager::FileManager},
     log::log_manager::LogManager,
+    util::Result,
 };
 
 use super::{
@@ -49,11 +50,12 @@ impl Transaction {
         }
     }
 
-    pub fn commit(&mut self) {
-        self.rm.commit();
+    pub fn commit(&mut self) -> Result<()> {
+        self.rm.commit()?;
         // TODO log
         self.cm.release();
         self.my_buffers.unpin_all();
+        Ok(())
     }
 
     pub fn rollback(&mut self) {
@@ -77,98 +79,121 @@ impl Transaction {
         }
     }
 
-    pub fn pin(&mut self, block: &BlockId) {
-        self.my_buffers.pin(block.clone()).unwrap();
+    pub fn pin(&mut self, block: &BlockId) -> Result<()> {
+        self.my_buffers.pin(block.clone())
     }
 
     pub fn unpin(&mut self, block: &BlockId) {
         self.my_buffers.unpin(block.clone());
     }
 
-    pub fn get_int(&mut self, block: &BlockId, offset: i32) -> i32 {
-        self.cm.s_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer(block).unwrap();
-        buffer.contents.get_int(offset)
+    pub fn get_int(&mut self, block: &BlockId, offset: i32) -> Result<i32> {
+        self.cm.s_lock(block)?;
+        let buffer = self.my_buffers.buffer(block);
+        Ok(buffer.contents.get_int(offset))
     }
-    pub fn set_int(&mut self, block: &BlockId, offset: i32, value: i32, log: bool) {
-        self.cm.x_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+    pub fn set_int(&mut self, block: &BlockId, offset: i32, value: i32, log: bool) -> Result<()> {
+        self.cm.x_lock(block)?;
+        let buffer = self.my_buffers.buffer_mut(block);
         let mut lsn = -1;
         if log {
-            lsn = self.rm.set_int(buffer, offset, value);
+            lsn = self.rm.set_int(buffer, offset, value)?;
         }
         buffer.contents.set_int(offset, value);
         buffer.set_modified(self.tx_num, lsn);
+        Ok(())
     }
 
-    pub fn get_bytes(&mut self, block: &BlockId, offset: i32) -> &[u8] {
-        self.cm.s_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer(block).unwrap();
-        buffer.contents.get_bytes(offset)
+    pub fn get_bytes(&mut self, block: &BlockId, offset: i32) -> Result<&[u8]> {
+        self.cm.s_lock(block)?;
+        let buffer = self.my_buffers.buffer(block);
+        Ok(buffer.contents.get_bytes(offset))
     }
-    pub fn set_bytes(&mut self, block: &BlockId, offset: i32, value: &[u8], log: bool) {
-        self.cm.x_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+    pub fn set_bytes(
+        &mut self,
+        block: &BlockId,
+        offset: i32,
+        value: &[u8],
+        log: bool,
+    ) -> Result<()> {
+        self.cm.x_lock(block)?;
+        let buffer = self.my_buffers.buffer_mut(block);
         let mut lsn = -1;
         if log {
-            lsn = self.rm.set_bytes(buffer, offset, value);
+            lsn = self.rm.set_bytes(buffer, offset, value)?;
         }
         buffer.contents.set_bytes(offset, value);
         buffer.set_modified(self.tx_num, lsn);
+        Ok(())
     }
 
-    pub fn get_string(&mut self, block: &BlockId, offset: i32) -> String {
-        self.cm.s_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer(block).unwrap();
-        buffer.contents.get_string(offset)
+    pub fn get_string(&mut self, block: &BlockId, offset: i32) -> Result<String> {
+        self.cm.s_lock(block)?;
+        let buffer = self.my_buffers.buffer(block);
+        Ok(buffer.contents.get_string(offset))
     }
-    pub fn set_string(&mut self, block: &BlockId, offset: i32, value: &str, log: bool) {
-        self.cm.x_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+    pub fn set_string(
+        &mut self,
+        block: &BlockId,
+        offset: i32,
+        value: &str,
+        log: bool,
+    ) -> Result<()> {
+        self.cm.x_lock(block)?;
+        let buffer = self.my_buffers.buffer_mut(block);
         let mut lsn = -1;
         if log {
-            lsn = self.rm.set_string(buffer, offset, value);
+            lsn = self.rm.set_string(buffer, offset, value)?;
         }
         buffer.contents.set_string(offset, value);
         buffer.set_modified(self.tx_num, lsn);
+        Ok(())
     }
 
-    pub fn get_bool(&mut self, block: &BlockId, offset: i32) -> bool {
-        self.cm.s_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer(block).unwrap();
-        buffer.contents.get_bool(offset)
+    pub fn get_bool(&mut self, block: &BlockId, offset: i32) -> Result<bool> {
+        self.cm.s_lock(block)?;
+        let buffer = self.my_buffers.buffer(block);
+        Ok(buffer.contents.get_bool(offset))
     }
-    pub fn set_bool(&mut self, block: &BlockId, offset: i32, value: bool, log: bool) {
-        self.cm.x_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+    pub fn set_bool(&mut self, block: &BlockId, offset: i32, value: bool, log: bool) -> Result<()> {
+        self.cm.x_lock(block)?;
+        let buffer = self.my_buffers.buffer_mut(block);
         let mut lsn = -1;
         if log {
-            lsn = self.rm.set_bool(buffer, offset, value);
+            lsn = self.rm.set_bool(buffer, offset, value)?;
         }
         buffer.contents.set_bool(offset, value);
         buffer.set_modified(self.tx_num, lsn);
+        Ok(())
     }
 
-    pub fn get_double(&mut self, block: &BlockId, offset: i32) -> f64 {
-        self.cm.s_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer(block).unwrap();
-        buffer.contents.get_double(offset)
+    pub fn get_double(&mut self, block: &BlockId, offset: i32) -> Result<f64> {
+        self.cm.s_lock(block)?;
+        let buffer = self.my_buffers.buffer(block);
+        Ok(buffer.contents.get_double(offset))
     }
-    pub fn set_double(&mut self, block: &BlockId, offset: i32, value: f64, log: bool) {
-        self.cm.x_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+    pub fn set_double(
+        &mut self,
+        block: &BlockId,
+        offset: i32,
+        value: f64,
+        log: bool,
+    ) -> Result<()> {
+        self.cm.x_lock(block)?;
+        let buffer = self.my_buffers.buffer_mut(block);
         let mut lsn = -1;
         if log {
-            lsn = self.rm.set_double(buffer, offset, value);
+            lsn = self.rm.set_double(buffer, offset, value)?;
         }
         buffer.contents.set_double(offset, value);
         buffer.set_modified(self.tx_num, lsn);
+        Ok(())
     }
 
-    pub fn get_date(&mut self, block: &BlockId, offset: i32) -> Option<chrono::NaiveDate> {
-        self.cm.s_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer(block).unwrap();
-        buffer.contents.get_date(offset)
+    pub fn get_date(&mut self, block: &BlockId, offset: i32) -> Result<Option<chrono::NaiveDate>> {
+        self.cm.s_lock(block)?;
+        let buffer = self.my_buffers.buffer(block);
+        Ok(buffer.contents.get_date(offset))
     }
     pub fn set_date(
         &mut self,
@@ -176,21 +201,22 @@ impl Transaction {
         offset: i32,
         value: &Option<chrono::NaiveDate>,
         log: bool,
-    ) {
-        self.cm.x_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+    ) -> Result<()> {
+        self.cm.x_lock(block)?;
+        let buffer = self.my_buffers.buffer_mut(block);
         let mut lsn = -1;
         if log {
-            lsn = self.rm.set_date(buffer, offset, value);
+            lsn = self.rm.set_date(buffer, offset, value)?;
         }
         buffer.contents.set_date(offset, value);
         buffer.set_modified(self.tx_num, lsn);
+        Ok(())
     }
 
-    pub fn get_time(&mut self, block: &BlockId, offset: i32) -> Option<chrono::NaiveTime> {
-        self.cm.s_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer(block).unwrap();
-        buffer.contents.get_time(offset)
+    pub fn get_time(&mut self, block: &BlockId, offset: i32) -> Result<Option<chrono::NaiveTime>> {
+        self.cm.s_lock(block)?;
+        let buffer = self.my_buffers.buffer(block);
+        Ok(buffer.contents.get_time(offset))
     }
     pub fn set_time(
         &mut self,
@@ -198,25 +224,26 @@ impl Transaction {
         offset: i32,
         value: &Option<chrono::NaiveTime>,
         log: bool,
-    ) {
-        self.cm.x_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+    ) -> Result<()> {
+        self.cm.x_lock(block)?;
+        let buffer = self.my_buffers.buffer_mut(block);
         let mut lsn = -1;
         if log {
-            lsn = self.rm.set_time(buffer, offset, value);
+            lsn = self.rm.set_time(buffer, offset, value)?;
         }
         buffer.contents.set_time(offset, value);
         buffer.set_modified(self.tx_num, lsn);
+        Ok(())
     }
 
     pub fn get_datetime(
         &mut self,
         block: &BlockId,
         offset: i32,
-    ) -> Option<chrono::DateTime<chrono::FixedOffset>> {
-        self.cm.s_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer(block).unwrap();
-        buffer.contents.get_datetime(offset)
+    ) -> Result<Option<chrono::DateTime<chrono::FixedOffset>>> {
+        self.cm.s_lock(block)?;
+        let buffer = self.my_buffers.buffer(block);
+        Ok(buffer.contents.get_datetime(offset))
     }
     pub fn set_datetime(
         &mut self,
@@ -224,21 +251,22 @@ impl Transaction {
         offset: i32,
         value: &Option<chrono::DateTime<chrono::FixedOffset>>,
         log: bool,
-    ) {
-        self.cm.x_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+    ) -> Result<()> {
+        self.cm.x_lock(block)?;
+        let buffer = self.my_buffers.buffer_mut(block);
         let mut lsn = -1;
         if log {
-            lsn = self.rm.set_datetime(buffer, offset, value);
+            lsn = self.rm.set_datetime(buffer, offset, value)?;
         }
         buffer.contents.set_datetime(offset, value);
         buffer.set_modified(self.tx_num, lsn);
+        Ok(())
     }
 
-    pub fn get_json(&mut self, block: &BlockId, offset: i32) -> Option<serde_json::Value> {
-        self.cm.s_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer(block).unwrap();
-        buffer.contents.get_json(offset)
+    pub fn get_json(&mut self, block: &BlockId, offset: i32) -> Result<Option<serde_json::Value>> {
+        self.cm.s_lock(block)?;
+        let buffer = self.my_buffers.buffer(block);
+        Ok(buffer.contents.get_json(offset))
     }
     pub fn set_json(
         &mut self,
@@ -246,29 +274,30 @@ impl Transaction {
         offset: i32,
         value: &Option<serde_json::Value>,
         log: bool,
-    ) {
-        self.cm.x_lock(block).unwrap();
-        let buffer = self.my_buffers.buffer_mut(block).unwrap();
+    ) -> Result<()> {
+        self.cm.x_lock(block)?;
+        let buffer = self.my_buffers.buffer_mut(block);
         let mut lsn = -1;
         if log {
-            lsn = self.rm.set_json(buffer, offset, value);
+            lsn = self.rm.set_json(buffer, offset, value)?;
         }
         buffer.contents.set_json(offset, value);
         buffer.set_modified(self.tx_num, lsn);
+        Ok(())
     }
 
-    pub fn size(&mut self, filename: &str) -> i32 {
+    pub fn size(&mut self, filename: &str) -> Result<i32> {
         let dummy = BlockId::new(filename.to_string(), END_OF_FILE);
-        self.cm.x_lock(&dummy).unwrap();
+        self.cm.x_lock(&dummy)?;
         let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
-        unsafe { (*fm).length(filename).unwrap() }
+        unsafe { (*fm).length(filename) }
     }
 
-    pub fn append(&mut self, filename: &str) -> BlockId {
+    pub fn append(&mut self, filename: &str) -> Result<BlockId> {
         let dummy = BlockId::new(filename.to_string(), END_OF_FILE);
-        self.cm.x_lock(&dummy).unwrap();
+        self.cm.x_lock(&dummy)?;
         let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
-        unsafe { (*fm).append(filename).unwrap() }
+        unsafe { (*fm).append(filename) }
     }
 
     pub fn block_size(&self) -> i32 {
@@ -306,10 +335,10 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_int(&block, 0, 123, true);
+            tx.pin(&block).unwrap();
+            tx.set_int(&block, 0, 123, true).unwrap();
 
-            assert_eq!(tx.get_int(&block, 0), 123);
+            assert_eq!(tx.get_int(&block, 0).unwrap(), 123);
         }
 
         #[test]
@@ -323,12 +352,12 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_int(&block, 0, 123, true);
+            tx.pin(&block).unwrap();
+            tx.set_int(&block, 0, 123, true).unwrap();
             tx.rollback();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_int(&block, 0), 0);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_int(&block, 0).unwrap(), 0);
         }
 
         #[test]
@@ -342,13 +371,13 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_int(&block, 0, 123, true);
-            tx.commit();
+            tx.pin(&block).unwrap();
+            tx.set_int(&block, 0, 123, true).unwrap();
+            tx.commit().unwrap();
             tx.recover();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_int(&block, 0), 123);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_int(&block, 0).unwrap(), 123);
         }
     }
 
@@ -366,10 +395,10 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_bytes(&block, 0, &[1, 2, 3], true);
+            tx.pin(&block).unwrap();
+            tx.set_bytes(&block, 0, &[1, 2, 3], true).unwrap();
 
-            assert_eq!(tx.get_bytes(&block, 0), &[1, 2, 3]);
+            assert_eq!(tx.get_bytes(&block, 0).unwrap(), &[1, 2, 3]);
         }
 
         #[test]
@@ -383,12 +412,12 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_bytes(&block, 0, &[1, 2, 3], true);
+            tx.pin(&block).unwrap();
+            tx.set_bytes(&block, 0, &[1, 2, 3], true).unwrap();
             tx.rollback();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_bytes(&block, 0), &[] as &[u8]);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_bytes(&block, 0).unwrap(), &[] as &[u8]);
         }
 
         #[test]
@@ -402,13 +431,13 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_bytes(&block, 0, &[1, 2, 3], true);
-            tx.commit();
+            tx.pin(&block).unwrap();
+            tx.set_bytes(&block, 0, &[1, 2, 3], true).unwrap();
+            tx.commit().unwrap();
             tx.recover();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_bytes(&block, 0), &[1, 2, 3]);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_bytes(&block, 0).unwrap(), &[1, 2, 3]);
         }
     }
 
@@ -426,10 +455,10 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_string(&block, 0, "abc", true);
+            tx.pin(&block).unwrap();
+            tx.set_string(&block, 0, "abc", true).unwrap();
 
-            assert_eq!(tx.get_string(&block, 0), "abc");
+            assert_eq!(tx.get_string(&block, 0).unwrap(), "abc");
         }
 
         #[test]
@@ -443,12 +472,12 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_string(&block, 0, "abc", true);
+            tx.pin(&block).unwrap();
+            tx.set_string(&block, 0, "abc", true).unwrap();
             tx.rollback();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_string(&block, 0), "");
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_string(&block, 0).unwrap(), "");
         }
 
         #[test]
@@ -462,13 +491,13 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_string(&block, 0, "abc", true);
-            tx.commit();
+            tx.pin(&block).unwrap();
+            tx.set_string(&block, 0, "abc", true).unwrap();
+            tx.commit().unwrap();
             tx.recover();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_string(&block, 0), "abc");
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_string(&block, 0).unwrap(), "abc");
         }
     }
 
@@ -486,10 +515,10 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_bool(&block, 0, true, true);
+            tx.pin(&block).unwrap();
+            tx.set_bool(&block, 0, true, true).unwrap();
 
-            assert_eq!(tx.get_bool(&block, 0), true);
+            assert_eq!(tx.get_bool(&block, 0).unwrap(), true);
         }
 
         #[test]
@@ -503,12 +532,12 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_bool(&block, 0, true, true);
+            tx.pin(&block).unwrap();
+            tx.set_bool(&block, 0, true, true).unwrap();
             tx.rollback();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_bool(&block, 0), false);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_bool(&block, 0).unwrap(), false);
         }
 
         #[test]
@@ -522,13 +551,13 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_bool(&block, 0, true, true);
-            tx.commit();
+            tx.pin(&block).unwrap();
+            tx.set_bool(&block, 0, true, true).unwrap();
+            tx.commit().unwrap();
             tx.recover();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_bool(&block, 0), true);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_bool(&block, 0).unwrap(), true);
         }
     }
 
@@ -546,10 +575,10 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_double(&block, 0, 1.23, true);
+            tx.pin(&block).unwrap();
+            tx.set_double(&block, 0, 1.23, true).unwrap();
 
-            assert_eq!(tx.get_double(&block, 0), 1.23);
+            assert_eq!(tx.get_double(&block, 0).unwrap(), 1.23);
         }
 
         #[test]
@@ -563,12 +592,12 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_double(&block, 0, 1.23, true);
+            tx.pin(&block).unwrap();
+            tx.set_double(&block, 0, 1.23, true).unwrap();
             tx.rollback();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_double(&block, 0), 0.0);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_double(&block, 0).unwrap(), 0.0);
         }
 
         #[test]
@@ -582,13 +611,13 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_double(&block, 0, 1.23, true);
-            tx.commit();
+            tx.pin(&block).unwrap();
+            tx.set_double(&block, 0, 1.23, true).unwrap();
+            tx.commit().unwrap();
             tx.recover();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_double(&block, 0), 1.23);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_double(&block, 0).unwrap(), 1.23);
         }
     }
 
@@ -606,16 +635,17 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             tx.set_date(
                 &block,
                 0,
                 &chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
                 true,
-            );
+            )
+            .unwrap();
 
             assert_eq!(
-                tx.get_date(&block, 0),
+                tx.get_date(&block, 0).unwrap(),
                 chrono::NaiveDate::from_ymd_opt(2021, 1, 1)
             );
         }
@@ -631,17 +661,18 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             tx.set_date(
                 &block,
                 0,
                 &chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
                 true,
-            );
+            )
+            .unwrap();
             tx.rollback();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_date(&block, 0), None);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_date(&block, 0).unwrap(), None);
         }
 
         #[test]
@@ -655,19 +686,20 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             tx.set_date(
                 &block,
                 0,
                 &chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
                 true,
-            );
-            tx.commit();
+            )
+            .unwrap();
+            tx.commit().unwrap();
             tx.recover();
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             assert_eq!(
-                tx.get_date(&block, 0),
+                tx.get_date(&block, 0).unwrap(),
                 chrono::NaiveDate::from_ymd_opt(2021, 1, 1)
             );
         }
@@ -687,16 +719,17 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             tx.set_time(
                 &block,
                 0,
                 &chrono::NaiveTime::from_hms_opt(12, 34, 56),
                 true,
-            );
+            )
+            .unwrap();
 
             assert_eq!(
-                tx.get_time(&block, 0),
+                tx.get_time(&block, 0).unwrap(),
                 chrono::NaiveTime::from_hms_opt(12, 34, 56)
             );
         }
@@ -712,18 +745,19 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             tx.set_time(
                 &block,
                 0,
                 &chrono::NaiveTime::from_hms_opt(12, 34, 56),
                 true,
-            );
+            )
+            .unwrap();
             tx.rollback();
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             assert_eq!(
-                tx.get_time(&block, 0),
+                tx.get_time(&block, 0).unwrap(),
                 chrono::NaiveTime::from_hms_opt(0, 0, 0)
             );
         }
@@ -739,19 +773,20 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             tx.set_time(
                 &block,
                 0,
                 &chrono::NaiveTime::from_hms_opt(12, 34, 56),
                 true,
-            );
-            tx.commit();
+            )
+            .unwrap();
+            tx.commit().unwrap();
             tx.recover();
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             assert_eq!(
-                tx.get_time(&block, 0),
+                tx.get_time(&block, 0).unwrap(),
                 chrono::NaiveTime::from_hms_opt(12, 34, 56)
             );
         }
@@ -772,10 +807,10 @@ mod tests {
             let block = BlockId::new("tempfile".to_string(), 0);
             let now = chrono::Utc::now().fixed_offset();
 
-            tx.pin(&block);
-            tx.set_datetime(&block, 0, &Some(now), true);
+            tx.pin(&block).unwrap();
+            tx.set_datetime(&block, 0, &Some(now), true).unwrap();
 
-            assert_eq!(tx.get_datetime(&block, 0).unwrap(), now);
+            assert_eq!(tx.get_datetime(&block, 0).unwrap().unwrap(), now);
         }
 
         #[test]
@@ -790,12 +825,12 @@ mod tests {
             let block = BlockId::new("tempfile".to_string(), 0);
             let now = chrono::Utc::now().fixed_offset();
 
-            tx.pin(&block);
-            tx.set_datetime(&block, 0, &Some(now), true);
+            tx.pin(&block).unwrap();
+            tx.set_datetime(&block, 0, &Some(now), true).unwrap();
             tx.rollback();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_datetime(&block, 0), None);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_datetime(&block, 0).unwrap(), None);
         }
 
         #[test]
@@ -810,13 +845,13 @@ mod tests {
             let block = BlockId::new("tempfile".to_string(), 0);
             let now = chrono::Utc::now().fixed_offset();
 
-            tx.pin(&block);
-            tx.set_datetime(&block, 0, &Some(now), true);
-            tx.commit();
+            tx.pin(&block).unwrap();
+            tx.set_datetime(&block, 0, &Some(now), true).unwrap();
+            tx.commit().unwrap();
             tx.recover();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_datetime(&block, 0).unwrap(), now);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_datetime(&block, 0).unwrap().unwrap(), now);
         }
     }
 
@@ -834,11 +869,12 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true);
+            tx.pin(&block).unwrap();
+            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
+                .unwrap();
 
             assert_eq!(
-                tx.get_json(&block, 0).unwrap(),
+                tx.get_json(&block, 0).unwrap().unwrap(),
                 serde_json::json!({"key": "value"})
             );
         }
@@ -854,12 +890,13 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true);
+            tx.pin(&block).unwrap();
+            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
+                .unwrap();
             tx.rollback();
 
-            tx.pin(&block);
-            assert_eq!(tx.get_json(&block, 0), None);
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_json(&block, 0).unwrap(), None);
         }
 
         #[test]
@@ -873,14 +910,15 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block);
-            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true);
-            tx.commit();
+            tx.pin(&block).unwrap();
+            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
+                .unwrap();
+            tx.commit().unwrap();
             tx.recover();
 
-            tx.pin(&block);
+            tx.pin(&block).unwrap();
             assert_eq!(
-                tx.get_json(&block, 0).unwrap(),
+                tx.get_json(&block, 0).unwrap().unwrap(),
                 serde_json::json!({"key": "value"})
             );
         }

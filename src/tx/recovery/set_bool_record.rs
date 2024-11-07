@@ -4,6 +4,7 @@ use crate::{
     file::{block_id::BlockId, page::Page},
     log::log_manager::LogManager,
     tx::transaction::Transaction,
+    util::Result,
 };
 
 use super::log_record::{LogRecord, SET_BOOL};
@@ -70,9 +71,9 @@ impl SetBoolRecord {
         page
     }
 
-    pub fn write_to_log(&self, lm: &mut LogManager) -> i32 {
+    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
         let page = self.page();
-        lm.append(page.buffer()).unwrap()
+        lm.append(page.buffer())
     }
 }
 
@@ -86,8 +87,9 @@ impl LogRecord for SetBoolRecord {
     }
 
     fn undo(&self, tx: &mut Transaction) {
-        tx.pin(&self.block);
-        tx.set_bool(&self.block, self.offset, self.old_value, false);
+        tx.pin(&self.block).unwrap();
+        tx.set_bool(&self.block, self.offset, self.old_value, false)
+            .unwrap();
         tx.unpin(&self.block);
     }
 }

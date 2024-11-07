@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
-use crate::{file::page::Page, log::log_manager::LogManager, tx::transaction::Transaction};
+use crate::{
+    file::page::Page, log::log_manager::LogManager, tx::transaction::Transaction, util::Result,
+};
 
 use super::log_record::{LogRecord, START};
 
@@ -27,9 +29,9 @@ impl StartRecord {
         page
     }
 
-    pub fn write_to_log(&self, lm: &mut LogManager) -> i32 {
+    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
         let page = self.page();
-        lm.append(page.buffer()).unwrap()
+        lm.append(page.buffer())
     }
 }
 
