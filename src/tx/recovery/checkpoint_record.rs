@@ -14,8 +14,7 @@ impl CheckpointRecord {
     }
 
     pub fn page(&self) -> Page {
-        let rec = vec![0; 4];
-        let mut page = Page::from_bytes(&rec);
+        let mut page = Page::new(4);
         page.set_int(0, CHECKPOINT);
         page
     }

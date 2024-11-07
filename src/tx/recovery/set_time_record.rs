@@ -63,8 +63,7 @@ impl SetTimeRecord {
         let opos = bpos + 4;
         let vpos = opos + 4;
 
-        let rec = vec![0; (vpos + Page::time_len(&self.old_value)) as usize];
-        let mut page = Page::from_bytes(&rec);
+        let mut page = Page::new(vpos + Page::time_len(&self.old_value));
 
         page.set_int(0, SET_TIME);
         page.set_int(tpos, self.tx_num);

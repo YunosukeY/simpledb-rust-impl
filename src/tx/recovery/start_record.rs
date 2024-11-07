@@ -22,8 +22,7 @@ impl StartRecord {
     }
 
     pub fn page(&self) -> Page {
-        let rec = vec![0; 8];
-        let mut page = Page::from_bytes(&rec);
+        let mut page = Page::new(8);
         page.set_int(0, START);
         page.set_int(4, self.tx_num);
         page
