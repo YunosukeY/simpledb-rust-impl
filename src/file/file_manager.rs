@@ -54,7 +54,7 @@ impl FileManager {
         let offset = block.block_num() * self.block_size;
 
         let file = self.get_file(block.filename()).lock().unwrap();
-        file.read_exact_at(&mut page.buf, offset as u64)?;
+        file.read_at(&mut page.buf, offset as u64)?;
         Ok(())
     }
 

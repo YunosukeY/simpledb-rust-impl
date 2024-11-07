@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-#![allow(deprecated)]
 
 use std::str::from_utf8;
 
@@ -22,25 +21,33 @@ impl Page {
         }
     }
 
+    pub fn buffer(&self) -> &[u8] {
+        &self.buf
+    }
+
+    pub fn int_len(_value: i32) -> i32 {
+        4
+    }
     pub fn get_int(&self, offset: i32) -> i32 {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 4];
         let a = bytes.try_into().unwrap();
         i32::from_be_bytes(a)
     }
-
     pub fn set_int(&mut self, offset: i32, value: i32) {
         let ofs = offset as usize;
         self.buf[ofs..ofs + 4].copy_from_slice(&value.to_be_bytes());
     }
 
+    pub fn bytes_len(bytes: &[u8]) -> i32 {
+        bytes.len() as i32 + 4
+    }
     pub fn get_bytes(&self, offset: i32) -> &[u8] {
         let len = self.get_int(offset);
 
         let ofs = offset as usize + 4;
         &self.buf[ofs..ofs + len as usize]
     }
-
     pub fn set_bytes(&mut self, offset: i32, bytes: &[u8]) {
         let len = bytes.len() as i32;
         self.set_int(offset, len);
@@ -49,75 +56,88 @@ impl Page {
         self.buf[ofs..ofs + bytes.len()].copy_from_slice(bytes);
     }
 
+    pub fn str_len(str: &str) -> i32 {
+        Self::bytes_len(str.as_bytes())
+    }
     pub fn get_string(&self, offset: i32) -> String {
         let bytes = self.get_bytes(offset);
         from_utf8(bytes).unwrap().to_string()
     }
-
     pub fn set_string(&mut self, offset: i32, s: &str) {
         let bytes: &[u8] = s.as_bytes();
         self.set_bytes(offset, bytes);
     }
 
+    pub fn bool_len(_value: bool) -> i32 {
+        1
+    }
     pub fn get_bool(&self, offset: i32) -> bool {
         self.buf[offset as usize] != 0
     }
-
     pub fn set_bool(&mut self, offset: i32, b: bool) {
         self.buf[offset as usize] = b as u8;
     }
 
+    pub fn double_len(_value: f64) -> i32 {
+        8
+    }
     pub fn get_double(&self, offset: i32) -> f64 {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 8];
         let a = bytes.try_into().unwrap();
         f64::from_be_bytes(a)
     }
-
     pub fn set_double(&mut self, offset: i32, value: f64) {
         let ofs = offset as usize;
         self.buf[ofs..ofs + 8].copy_from_slice(&value.to_be_bytes());
     }
 
-    pub fn get_date(&self, offset: i32) -> NaiveDate {
+    pub fn date_len(_value: &Option<NaiveDate>) -> i32 {
+        6
+    }
+    pub fn get_date(&self, offset: i32) -> Option<NaiveDate> {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 6];
         let y = i32::from_be_bytes(bytes[0..4].try_into().unwrap());
         let m = bytes[4] as u32;
         let d = bytes[5] as u32;
-        NaiveDate::from_ymd(y, m, d)
+        NaiveDate::from_ymd_opt(y, m, d)
     }
-
-    pub fn set_date(&mut self, offset: i32, date: NaiveDate) {
+    pub fn set_date(&mut self, offset: i32, date: &Option<NaiveDate>) {
         let ofs = offset as usize;
-        let y = date.year().to_be_bytes();
-        let m = date.month() as u8;
-        let d = date.day() as u8;
+        let y = date.map_or(0, |d| d.year()).to_be_bytes();
+        let m = date.map_or(0, |d| d.month()) as u8;
+        let d = date.map_or(0, |d| d.day()) as u8;
         let bytes = &[y[0], y[1], y[2], y[3], m, d];
         self.buf[ofs..ofs + 6].copy_from_slice(bytes);
     }
 
-    pub fn get_time(&self, offset: i32) -> NaiveTime {
+    pub fn time_len(_value: &Option<chrono::NaiveTime>) -> i32 {
+        7
+    }
+    pub fn get_time(&self, offset: i32) -> Option<NaiveTime> {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 7];
         let h = bytes[0] as u32;
         let m = bytes[1] as u32;
         let s = bytes[2] as u32;
         let f = u32::from_be_bytes(bytes[3..7].try_into().unwrap());
-        NaiveTime::from_hms_nano(h, m, s, f)
+        NaiveTime::from_hms_nano_opt(h, m, s, f)
     }
-
-    pub fn set_time(&mut self, offset: i32, time: NaiveTime) {
+    pub fn set_time(&mut self, offset: i32, time: &Option<chrono::NaiveTime>) {
         let ofs = offset as usize;
-        let h = time.hour() as u8;
-        let m = time.minute() as u8;
-        let s = time.second() as u8;
-        let f = time.nanosecond().to_be_bytes();
+        let h = time.map_or(0, |d| d.hour()) as u8;
+        let m = time.map_or(0, |d| d.minute()) as u8;
+        let s = time.map_or(0, |d| d.second()) as u8;
+        let f = time.map_or(0, |d| d.nanosecond()).to_be_bytes();
         let bytes = &[h, m, s, f[0], f[1], f[2], f[3]];
         self.buf[ofs..ofs + 7].copy_from_slice(bytes);
     }
 
-    pub fn get_datetime(&self, offset: i32) -> DateTime<FixedOffset> {
+    pub fn datetime_len(_value: &Option<DateTime<FixedOffset>>) -> i32 {
+        15
+    }
+    pub fn get_datetime(&self, offset: i32) -> Option<DateTime<FixedOffset>> {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 15];
         let y = u16::from_be_bytes(bytes[0..2].try_into().unwrap()) as i32;
@@ -128,38 +148,46 @@ impl Page {
         let s = bytes[6] as u32;
         let f = u32::from_be_bytes(bytes[7..11].try_into().unwrap());
         let tz = i32::from_be_bytes(bytes[11..15].try_into().unwrap());
-        FixedOffset::east(tz)
-            .ymd(y, mo, d)
-            .and_hms_nano(h, mi, s, f)
-    }
 
-    pub fn set_datetime(&mut self, offset: i32, datetime: DateTime<FixedOffset>) {
+        let datetime =
+            NaiveDate::from_ymd_opt(y, mo, d).and_then(|d| d.and_hms_nano_opt(h, mi, s, f));
+        let tz = FixedOffset::east_opt(tz);
+        if datetime.is_none() || tz.is_none() {
+            return None;
+        }
+        let datetime = datetime.unwrap();
+        let tz = tz.unwrap();
+        tz.from_local_datetime(&datetime).single()
+    }
+    pub fn set_datetime(&mut self, offset: i32, datetime: &Option<DateTime<FixedOffset>>) {
         let ofs = offset as usize;
-        let y = (datetime.year() as u16).to_be_bytes();
-        let mo = datetime.month() as u8;
-        let d = datetime.day() as u8;
-        let h = datetime.hour() as u8;
-        let mi = datetime.minute() as u8;
-        let s = datetime.second() as u8;
-        let f = datetime.nanosecond().to_be_bytes();
-        let tz = datetime.offset().local_minus_utc().to_be_bytes();
+        let y = (datetime.map_or(0, |d| d.year() as u16)).to_be_bytes();
+        let mo = datetime.map_or(0, |d| d.month()) as u8;
+        let d = datetime.map_or(0, |d| d.day()) as u8;
+        let h = datetime.map_or(0, |d| d.hour()) as u8;
+        let mi = datetime.map_or(0, |d| d.minute()) as u8;
+        let s = datetime.map_or(0, |d| d.second()) as u8;
+        let f = datetime.map_or(0, |d| d.nanosecond()).to_be_bytes();
+        let tz = datetime
+            .map_or(0, |d| d.offset().local_minus_utc())
+            .to_be_bytes();
         let bytes = &[
             y[0], y[1], mo, d, h, mi, s, f[0], f[1], f[2], f[3], tz[0], tz[1], tz[2], tz[3],
         ];
         self.buf[ofs..ofs + 15].copy_from_slice(bytes);
     }
 
-    pub fn get_json(&self, offset: i32) -> serde_json::Value {
+    pub fn json_len(json: &Option<serde_json::Value>) -> i32 {
+        let s = json.clone().map_or("".to_string(), |j| j.to_string());
+        Self::str_len(&s)
+    }
+    pub fn get_json(&self, offset: i32) -> Option<serde_json::Value> {
         let s = self.get_string(offset);
-        serde_json::from_str(&s).unwrap()
+        serde_json::from_str(&s).ok()
     }
-
-    pub fn set_json(&mut self, offset: i32, json: &serde_json::Value) {
-        self.set_string(offset, &json.to_string());
-    }
-
-    pub fn max_length(str: &str) -> i32 {
-        str.as_bytes().len() as i32 + 1
+    pub fn set_json(&mut self, offset: i32, json: &Option<serde_json::Value>) {
+        let s = json.clone().map_or("".to_string(), |j| j.to_string());
+        self.set_string(offset, &s);
     }
 }
 
@@ -243,16 +271,16 @@ mod tests {
         let mut p = Page::new(6);
 
         let values = [
-            NaiveDate::from_ymd(2015, 3, 14),
-            NaiveDate::from_ymd(0, 1, 1),
-            NaiveDate::from_ymd(-4, 2, 29),
-            NaiveDate::MAX,
-            NaiveDate::MIN,
+            NaiveDate::from_ymd_opt(2015, 3, 14),
+            NaiveDate::from_ymd_opt(0, 1, 1),
+            NaiveDate::from_ymd_opt(-4, 2, 29),
+            Some(NaiveDate::MAX),
+            Some(NaiveDate::MIN),
         ];
 
         for value in values {
-            p.set_date(0, value);
-            assert_eq!(p.get_date(0), value, "value: {}", value);
+            p.set_date(0, &value);
+            assert_eq!(p.get_date(0), value, "value: {:?}", value);
         }
     }
 
@@ -261,15 +289,15 @@ mod tests {
         let mut p = Page::new(7);
 
         let values = [
-            NaiveTime::from_hms(15, 4, 5),
-            NaiveTime::MIN,
-            NaiveTime::from_hms_nano(23, 59, 59, 999_999_999),
-            NaiveTime::from_hms_nano(23, 59, 59, 1_999_999_999),
+            NaiveTime::from_hms_opt(15, 4, 5),
+            Some(NaiveTime::MIN),
+            NaiveTime::from_hms_nano_opt(23, 59, 59, 999_999_999),
+            NaiveTime::from_hms_nano_opt(23, 59, 59, 1_999_999_999),
         ];
 
         for value in values {
-            p.set_time(0, value);
-            assert_eq!(p.get_time(0), value, "value: {}", value);
+            p.set_time(0, &value);
+            assert_eq!(p.get_time(0), value, "value: {:?}", value);
         }
     }
 
@@ -286,8 +314,8 @@ mod tests {
         ];
 
         for value in values {
-            p.set_datetime(0, value);
-            assert_eq!(p.get_datetime(0), value, "value: {}", value);
+            p.set_datetime(0, &Some(value));
+            assert_eq!(p.get_datetime(0).unwrap(), value, "value: {}", value);
         }
     }
 
@@ -305,8 +333,9 @@ mod tests {
         ];
 
         for value in values {
+            let value = Some(value);
             p.set_json(0, &value);
-            assert_eq!(p.get_json(0), value, "value: {}", value);
+            assert_eq!(p.get_json(0), value, "value: {:?}", value);
         }
     }
 }
