@@ -12,12 +12,17 @@ use super::log_record::{LogRecord, SET_JSON};
 pub struct SetJsonRecord {
     tx_num: i32,
     offset: i32,
-    old_value: serde_json::Value,
+    old_value: Option<serde_json::Value>,
     block: BlockId,
 }
 
 impl SetJsonRecord {
-    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: &serde_json::Value) -> Self {
+    pub fn new(
+        tx_num: i32,
+        block: BlockId,
+        offset: i32,
+        old_value: &Option<serde_json::Value>,
+    ) -> Self {
         Self {
             tx_num,
             offset,
@@ -112,7 +117,7 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            &serde_json::json!({ "key": "value" }),
+            &Some(serde_json::json!({ "key": "value" })),
         );
 
         let record2 = SetJsonRecord::from_page(record.page());
@@ -126,11 +131,11 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            &serde_json::json!({ "key": "value" }),
+            &Some(serde_json::json!({ "key": "value" })),
         );
         assert_eq!(
             record.to_string(),
-            "<SET_JSON 1 [file filename, block 2] 3 Object {\"key\": String(\"value\")}>"
+            "<SET_JSON 1 [file filename, block 2] 3 Some(Object {\"key\": String(\"value\")})>"
         );
     }
 }

@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-#![allow(deprecated)]
 
 use crate::{
     file::{block_id::BlockId, page::Page},
@@ -13,12 +12,17 @@ use super::log_record::{LogRecord, SET_TIME};
 pub struct SetTimeRecord {
     tx_num: i32,
     offset: i32,
-    old_value: chrono::NaiveTime,
+    old_value: Option<chrono::NaiveTime>,
     block: BlockId,
 }
 
 impl SetTimeRecord {
-    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: chrono::NaiveTime) -> Self {
+    pub fn new(
+        tx_num: i32,
+        block: BlockId,
+        offset: i32,
+        old_value: Option<chrono::NaiveTime>,
+    ) -> Self {
         Self {
             tx_num,
             offset,
@@ -97,7 +101,7 @@ impl std::fmt::Display for SetTimeRecord {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "<SET_TIME {} {} {} {}>",
+            "<SET_TIME {} {} {} {:?}>",
             self.tx_num, self.block, self.offset, self.old_value
         )
     }
@@ -113,7 +117,7 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::NaiveTime::from_hms(4, 5, 6),
+            chrono::NaiveTime::from_hms_opt(4, 5, 6),
         );
 
         let record2 = SetTimeRecord::from_page(record.page());
@@ -127,12 +131,12 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::NaiveTime::from_hms(4, 5, 6),
+            chrono::NaiveTime::from_hms_opt(4, 5, 6),
         );
 
         assert_eq!(
             record.to_string(),
-            "<SET_TIME 1 [file filename, block 2] 3 04:05:06>"
+            "<SET_TIME 1 [file filename, block 2] 3 Some(04:05:06)>"
         );
     }
 }

@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-#![allow(deprecated)]
 
 use crate::{
     file::{block_id::BlockId, page::Page},
@@ -13,12 +12,17 @@ use super::log_record::{LogRecord, SET_DATE};
 pub struct SetDateRecord {
     tx_num: i32,
     offset: i32,
-    old_value: chrono::NaiveDate,
+    old_value: Option<chrono::NaiveDate>,
     block: BlockId,
 }
 
 impl SetDateRecord {
-    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: chrono::NaiveDate) -> Self {
+    pub fn new(
+        tx_num: i32,
+        block: BlockId,
+        offset: i32,
+        old_value: Option<chrono::NaiveDate>,
+    ) -> Self {
         Self {
             tx_num,
             offset,
@@ -113,7 +117,7 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::NaiveDate::from_ymd(2021, 1, 1),
+            chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
         );
 
         let record2 = SetDateRecord::from_page(record.page());
@@ -127,12 +131,12 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::NaiveDate::from_ymd(2021, 1, 1),
+            chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
         );
 
         assert_eq!(
             record.to_string(),
-            "<SET_DATE 1 [file filename, block 2] 3 2021-01-01>"
+            "<SET_DATE 1 [file filename, block 2] 3 Some(2021-01-01)>"
         );
     }
 }

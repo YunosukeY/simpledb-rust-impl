@@ -12,7 +12,7 @@ use super::log_record::{LogRecord, SET_DATETIME};
 pub struct SetDatetimeRecord {
     tx_num: i32,
     offset: i32,
-    old_value: chrono::DateTime<chrono::FixedOffset>,
+    old_value: Option<chrono::DateTime<chrono::FixedOffset>>,
     block: BlockId,
 }
 
@@ -21,7 +21,7 @@ impl SetDatetimeRecord {
         tx_num: i32,
         block: BlockId,
         offset: i32,
-        old_value: chrono::DateTime<chrono::FixedOffset>,
+        old_value: Option<chrono::DateTime<chrono::FixedOffset>>,
     ) -> Self {
         Self {
             tx_num,
@@ -101,7 +101,7 @@ impl std::fmt::Display for SetDatetimeRecord {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "<SET_DATETIME {} {} {} {}>",
+            "<SET_DATETIME {} {} {} {:?}>",
             self.tx_num, self.block, self.offset, self.old_value
         )
     }
@@ -117,7 +117,7 @@ mod tests {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::Utc::now().fixed_offset(),
+            Some(chrono::Utc::now().fixed_offset()),
         );
 
         let record2 = SetDatetimeRecord::from_page(record.page());
@@ -131,13 +131,13 @@ mod tests {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::Utc::now().fixed_offset(),
+            Some(chrono::Utc::now().fixed_offset()),
         );
 
         assert_eq!(
             record.to_string(),
             format!(
-                "<SET_DATETIME 1 [file filename, block 2] 3 {}>",
+                "<SET_DATETIME 1 [file filename, block 2] 3 {:?}>",
                 record.old_value
             )
         );

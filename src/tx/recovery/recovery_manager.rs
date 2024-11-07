@@ -121,14 +121,24 @@ impl RecoveryManager {
         }
     }
 
-    pub fn set_date(&mut self, buff: &Buffer, offset: i32, _new_value: &chrono::NaiveDate) -> i32 {
+    pub fn set_date(
+        &mut self,
+        buff: &Buffer,
+        offset: i32,
+        _new_value: &Option<chrono::NaiveDate>,
+    ) -> i32 {
         let old_value = buff.contents.get_date(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe { SetDateRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut *lm) }
     }
 
-    pub fn set_time(&mut self, buff: &Buffer, offset: i32, _new_value: &chrono::NaiveTime) -> i32 {
+    pub fn set_time(
+        &mut self,
+        buff: &Buffer,
+        offset: i32,
+        _new_value: &Option<chrono::NaiveTime>,
+    ) -> i32 {
         let old_value = buff.contents.get_time(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
@@ -139,7 +149,7 @@ impl RecoveryManager {
         &mut self,
         buff: &Buffer,
         offset: i32,
-        _new_value: &chrono::DateTime<chrono::FixedOffset>,
+        _new_value: &Option<chrono::DateTime<chrono::FixedOffset>>,
     ) -> i32 {
         let old_value = buff.contents.get_datetime(offset);
         let block = buff.block().clone().unwrap();
@@ -149,7 +159,12 @@ impl RecoveryManager {
         }
     }
 
-    pub fn set_json(&mut self, buff: &Buffer, offset: i32, _new_value: &serde_json::Value) -> i32 {
+    pub fn set_json(
+        &mut self,
+        buff: &Buffer,
+        offset: i32,
+        _new_value: &Option<serde_json::Value>,
+    ) -> i32 {
         let old_value = buff.contents.get_json(offset);
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
