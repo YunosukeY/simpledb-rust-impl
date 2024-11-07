@@ -11,7 +11,7 @@ use crate::{
     util::{current_time_millis, waiting_too_long, Result, MAX_WAIT_TIME_MILLIS},
 };
 
-pub(super) struct LockTable {
+pub struct LockTable {
     m: Mutex<()>,
     cond: Condvar,
     locks: HashMap<BlockId, i32>,
@@ -26,7 +26,7 @@ impl LockTable {
         }
     }
 
-    pub fn s_lock(&mut self, block: &BlockId) -> Result<()> {
+    pub(super) fn s_lock(&mut self, block: &BlockId) -> Result<()> {
         let mut lock = self.m.lock().unwrap();
         let start_time = current_time_millis();
         while Self::has_x_lock(&self.locks, block) && !waiting_too_long(start_time) {
@@ -44,7 +44,7 @@ impl LockTable {
         Ok(())
     }
 
-    pub fn x_lock(&mut self, block: &BlockId) -> Result<()> {
+    pub(super) fn x_lock(&mut self, block: &BlockId) -> Result<()> {
         let mut lock = self.m.lock().unwrap();
         let start_time = current_time_millis();
         while Self::has_other_s_locks(&self.locks, block) && !waiting_too_long(start_time) {
@@ -62,7 +62,7 @@ impl LockTable {
         Ok(())
     }
 
-    pub fn unlock(&mut self, block: &BlockId) {
+    pub(super) fn unlock(&mut self, block: &BlockId) {
         let _lock = self.m.lock().unwrap();
         let value = Self::lock_value(&self.locks, block);
         if value > 1 {

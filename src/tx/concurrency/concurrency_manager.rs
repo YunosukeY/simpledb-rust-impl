@@ -1,28 +1,28 @@
 #![allow(dead_code)]
 
-use std::{collections::HashMap, sync::LazyLock};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{file::block_id::BlockId, util::Result};
 
 use super::lock_table::LockTable;
 
-static mut LOCK_TABLE: LazyLock<LockTable> = LazyLock::new(LockTable::new);
-
 pub struct ConcurrencyManager {
     locks: HashMap<BlockId, char>,
+    lock_table: Arc<LockTable>,
 }
 
 impl ConcurrencyManager {
-    pub fn new() -> Self {
+    pub fn new(lock_table: Arc<LockTable>) -> Self {
         Self {
             locks: HashMap::new(),
+            lock_table,
         }
     }
 
     pub fn s_lock(&mut self, block: &BlockId) -> Result<()> {
         if !self.locks.contains_key(block) {
+            let lock_table = Arc::as_ptr(&self.lock_table) as *mut LockTable;
             unsafe {
-                let lock_table = &*LOCK_TABLE as *const LockTable as *mut LockTable;
                 (*lock_table).s_lock(block)?;
             }
             self.locks.insert(block.clone(), 'S');
@@ -33,8 +33,8 @@ impl ConcurrencyManager {
     pub fn x_lock(&mut self, block: &BlockId) -> Result<()> {
         if !self.has_x_lock(block) {
             self.s_lock(block)?;
+            let lock_table = Arc::as_ptr(&self.lock_table) as *mut LockTable;
             unsafe {
-                let lock_table = &*LOCK_TABLE as *const LockTable as *mut LockTable;
                 (*lock_table).x_lock(block)?;
             }
             self.locks.insert(block.clone(), 'X');
@@ -44,8 +44,8 @@ impl ConcurrencyManager {
 
     pub fn release(&mut self) {
         for block in self.locks.keys() {
+            let lock_table = Arc::as_ptr(&self.lock_table) as *mut LockTable;
             unsafe {
-                let lock_table = &*LOCK_TABLE as *const LockTable as *mut LockTable;
                 (*lock_table).unlock(block);
             }
         }
@@ -63,8 +63,9 @@ mod tests {
 
     #[test]
     fn xlock_then_xlock() {
-        let mut cm1 = ConcurrencyManager::new();
-        let mut cm2 = ConcurrencyManager::new();
+        let lock_table = Arc::new(LockTable::new());
+        let mut cm1 = ConcurrencyManager::new(lock_table.clone());
+        let mut cm2 = ConcurrencyManager::new(lock_table.clone());
         let block = BlockId::new("file".to_string(), 0);
 
         cm1.x_lock(&block).unwrap();

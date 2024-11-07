@@ -24,9 +24,8 @@ pub struct BufferManager {
 }
 
 impl BufferManager {
-    pub fn new(fm: Arc<FileManager>, lm: LogManager, num_buffers: i32) -> Self {
+    pub fn new(fm: Arc<FileManager>, lm: Arc<LogManager>, num_buffers: i32) -> Self {
         let mut buffer_pool = Vec::new();
-        let lm = Arc::new(lm);
         for _ in 0..num_buffers {
             buffer_pool.push(Buffer::new(fm.clone(), lm.clone()));
         }
@@ -162,7 +161,7 @@ mod tests {
             10,
         );
         let fm = Arc::new(fm);
-        let lm = LogManager::new(fm.clone(), "templog".to_string());
+        let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
         let mut bm = BufferManager::new(fm.clone(), lm, 3);
         assert_eq!(bm.available(), 3);
 
@@ -222,7 +221,7 @@ mod tests {
             10,
         );
         let fm = Arc::new(fm);
-        let lm = LogManager::new(fm.clone(), "templog".to_string());
+        let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
         let mut bm = BufferManager::new(fm.clone(), lm, 3);
 
         // 0: modify and set_modified

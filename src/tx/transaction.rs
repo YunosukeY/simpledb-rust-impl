@@ -21,13 +21,13 @@ pub struct Transaction {
     rm: RecoveryManager,
     cm: ConcurrencyManager,
     bm: Arc<BufferManager>,
-    fm: FileManager,
+    fm: Arc<FileManager>,
     tx_num: i32,
     my_buffers: BufferList,
 }
 
 impl Transaction {
-    pub fn new(fm: FileManager, lm: LogManager, bm: BufferManager) -> Self {
+    pub fn new(fm: Arc<FileManager>, lm: Arc<LogManager>, bm: BufferManager) -> Self {
         let tx_num = Self::next_tx_number();
         let bm = Arc::new(bm);
         let rm = RecoveryManager::new(tx_num, lm, bm.clone());
@@ -236,13 +236,15 @@ impl Transaction {
     pub fn size(&mut self, filename: &str) -> i32 {
         let dummy = BlockId::new(filename.to_string(), END_OF_FILE);
         self.cm.x_lock(&dummy).unwrap();
-        self.fm.length(filename).unwrap()
+        let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
+        unsafe { (*fm).length(filename).unwrap() }
     }
 
     pub fn append(&mut self, filename: &str) -> BlockId {
         let dummy = BlockId::new(filename.to_string(), END_OF_FILE);
         self.cm.x_lock(&dummy).unwrap();
-        self.fm.append(filename).unwrap()
+        let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
+        unsafe { (*fm).append(filename).unwrap() }
     }
 
     pub fn block_size(&self) -> i32 {
