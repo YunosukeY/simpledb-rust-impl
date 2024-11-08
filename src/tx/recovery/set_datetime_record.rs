@@ -32,7 +32,14 @@ impl SetDatetimeRecord {
         }
     }
 
-    pub fn from_page(page: Page) -> Self {
+    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
+        let page = Page::from(self);
+        lm.append(page.buffer())
+    }
+}
+
+impl From<Page> for SetDatetimeRecord {
+    fn from(page: Page) -> Self {
         let tpos = 4;
         let tx_num = page.get_int(tpos);
 
@@ -55,29 +62,25 @@ impl SetDatetimeRecord {
             block: BlockId::new(filename, block_num),
         }
     }
-
-    pub fn page(&self) -> Page {
+}
+impl From<&SetDatetimeRecord> for Page {
+    fn from(record: &SetDatetimeRecord) -> Self {
         let tpos = 4;
         let fpos = tpos + 4;
-        let bpos = fpos + Page::str_len(self.block.filename());
+        let bpos = fpos + Page::str_len(record.block.filename());
         let opos = bpos + 4;
         let vpos = opos + 4;
 
-        let mut page = Page::new(vpos + Page::datetime_len(&self.old_value));
+        let mut page = Page::new(vpos + Page::datetime_len(&record.old_value));
 
         page.set_int(0, SET_DATETIME);
-        page.set_int(tpos, self.tx_num);
-        page.set_string(fpos, self.block.filename());
-        page.set_int(bpos, self.block.block_num());
-        page.set_int(opos, self.offset);
-        page.set_datetime(vpos, &self.old_value);
+        page.set_int(tpos, record.tx_num);
+        page.set_string(fpos, record.block.filename());
+        page.set_int(bpos, record.block.block_num());
+        page.set_int(opos, record.offset);
+        page.set_datetime(vpos, &record.old_value);
 
         page
-    }
-
-    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
-        let page = self.page();
-        lm.append(page.buffer())
     }
 }
 
@@ -121,7 +124,7 @@ mod tests {
             Some(chrono::Utc::now().fixed_offset()),
         );
 
-        let record2 = SetDatetimeRecord::from_page(record.page());
+        let record2 = SetDatetimeRecord::from(Page::from(&record));
 
         assert_eq!(record2, record);
     }

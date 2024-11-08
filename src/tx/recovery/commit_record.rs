@@ -16,21 +16,24 @@ impl CommitRecord {
         Self { tx_num }
     }
 
-    pub fn from_page(page: Page) -> Self {
+    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
+        let page = Page::from(self);
+        lm.append(page.buffer())
+    }
+}
+
+impl From<Page> for CommitRecord {
+    fn from(page: Page) -> Self {
         let tx_num = page.get_int(4);
         CommitRecord { tx_num }
     }
-
-    pub fn page(&self) -> Page {
+}
+impl From<&CommitRecord> for Page {
+    fn from(record: &CommitRecord) -> Self {
         let mut page = Page::new(8);
         page.set_int(0, COMMIT);
-        page.set_int(4, self.tx_num);
+        page.set_int(4, record.tx_num);
         page
-    }
-
-    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
-        let page = self.page();
-        lm.append(page.buffer())
     }
 }
 
@@ -60,7 +63,7 @@ mod tests {
     fn test() {
         let record = CommitRecord::new(1);
 
-        let record2 = CommitRecord::from_page(record.page());
+        let record2 = CommitRecord::from(Page::from(&record));
 
         assert_eq!(record, record2);
     }

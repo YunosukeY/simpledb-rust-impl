@@ -27,7 +27,14 @@ impl SetDoubleRecord {
         }
     }
 
-    pub fn from_page(page: Page) -> Self {
+    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
+        let page = Page::from(self);
+        lm.append(page.buffer())
+    }
+}
+
+impl From<Page> for SetDoubleRecord {
+    fn from(page: Page) -> Self {
         let tpos = 4;
         let tx_num = page.get_int(tpos);
 
@@ -50,29 +57,25 @@ impl SetDoubleRecord {
             block: BlockId::new(filename, block_num),
         }
     }
-
-    pub fn page(&self) -> Page {
+}
+impl From<&SetDoubleRecord> for Page {
+    fn from(record: &SetDoubleRecord) -> Self {
         let tpos = 4;
         let fpos = tpos + 4;
-        let bpos = fpos + Page::str_len(self.block.filename());
+        let bpos = fpos + Page::str_len(record.block.filename());
         let opos = bpos + 4;
         let vpos = opos + 4;
 
-        let mut page = Page::new(vpos + Page::double_len(self.old_value));
+        let mut page = Page::new(vpos + Page::double_len(record.old_value));
 
         page.set_int(0, SET_DOUBLE);
-        page.set_int(tpos, self.tx_num);
-        page.set_string(fpos, self.block.filename());
-        page.set_int(bpos, self.block.block_num());
-        page.set_int(opos, self.offset);
-        page.set_double(vpos, self.old_value);
+        page.set_int(tpos, record.tx_num);
+        page.set_string(fpos, record.block.filename());
+        page.set_int(bpos, record.block.block_num());
+        page.set_int(opos, record.offset);
+        page.set_double(vpos, record.old_value);
 
         page
-    }
-
-    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
-        let page = self.page();
-        lm.append(page.buffer())
     }
 }
 
@@ -111,7 +114,7 @@ mod test {
     fn test() {
         let record = SetDoubleRecord::new(3, BlockId::new("filename".to_string(), 2), 4, 5.0);
 
-        let record2 = SetDoubleRecord::from_page(record.page());
+        let record2 = SetDoubleRecord::from(Page::from(&record));
 
         assert_eq!(record, record2);
     }
