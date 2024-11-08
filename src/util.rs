@@ -1,5 +1,7 @@
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+pub const INTEGER_BYTES: i32 = 4;
+
 pub const MAX_WAIT_TIME_MILLIS: u128 = 100;
 
 pub fn current_time_millis() -> u128 {

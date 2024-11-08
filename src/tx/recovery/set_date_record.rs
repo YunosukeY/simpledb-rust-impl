@@ -4,7 +4,7 @@ use crate::{
     file::{block_id::BlockId, page::Page},
     log::log_manager::LogManager,
     tx::transaction::Transaction,
-    util::Result,
+    util::{Result, INTEGER_BYTES},
 };
 
 use super::log_record::{LogRecord, SET_DATE};
@@ -40,19 +40,19 @@ impl SetDateRecord {
 
 impl From<Page> for SetDateRecord {
     fn from(page: Page) -> Self {
-        let tpos = 4;
+        let tpos = INTEGER_BYTES;
         let tx_num = page.get_int(tpos);
 
-        let fpos = tpos + 4;
+        let fpos = tpos + INTEGER_BYTES;
         let filename = page.get_string(fpos);
 
         let bpos = fpos + Page::str_len(&filename);
         let block_num = page.get_int(bpos);
 
-        let opos = bpos + 4;
+        let opos = bpos + INTEGER_BYTES;
         let offset = page.get_int(opos);
 
-        let vpos = opos + 4;
+        let vpos = opos + INTEGER_BYTES;
         let old_value = page.get_date(vpos);
 
         Self {
@@ -65,11 +65,11 @@ impl From<Page> for SetDateRecord {
 }
 impl From<&SetDateRecord> for Page {
     fn from(record: &SetDateRecord) -> Self {
-        let tpos = 4;
-        let fpos = tpos + 4;
+        let tpos = INTEGER_BYTES;
+        let fpos = tpos + INTEGER_BYTES;
         let bpos = fpos + Page::str_len(record.block.filename());
-        let opos = bpos + 4;
-        let vpos = opos + 4;
+        let opos = bpos + INTEGER_BYTES;
+        let vpos = opos + INTEGER_BYTES;
 
         let mut page = Page::new(vpos + Page::date_len(&record.old_value));
 

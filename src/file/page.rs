@@ -4,6 +4,8 @@ use std::str::from_utf8;
 
 use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, TimeZone, Timelike};
 
+use crate::util::INTEGER_BYTES;
+
 pub struct Page {
     pub(super) buf: Vec<u8>,
 }
@@ -20,33 +22,33 @@ impl Page {
     }
 
     pub fn int_len(_value: i32) -> i32 {
-        4
+        INTEGER_BYTES
     }
     pub fn get_int(&self, offset: i32) -> i32 {
         let ofs = offset as usize;
-        let bytes = &self.buf[ofs..ofs + 4];
+        let bytes = &self.buf[ofs..ofs + INTEGER_BYTES as usize];
         let a = bytes.try_into().unwrap();
         i32::from_be_bytes(a)
     }
     pub fn set_int(&mut self, offset: i32, value: i32) {
         let ofs = offset as usize;
-        self.buf[ofs..ofs + 4].copy_from_slice(&value.to_be_bytes());
+        self.buf[ofs..ofs + INTEGER_BYTES as usize].copy_from_slice(&value.to_be_bytes());
     }
 
     pub fn bytes_len(bytes: &[u8]) -> i32 {
-        bytes.len() as i32 + 4
+        bytes.len() as i32 + INTEGER_BYTES
     }
     pub fn get_bytes(&self, offset: i32) -> &[u8] {
         let len = self.get_int(offset);
 
-        let ofs = offset as usize + 4;
+        let ofs = (offset + INTEGER_BYTES) as usize;
         &self.buf[ofs..ofs + len as usize]
     }
     pub fn set_bytes(&mut self, offset: i32, bytes: &[u8]) {
         let len = bytes.len() as i32;
         self.set_int(offset, len);
 
-        let ofs = offset as usize + 4;
+        let ofs = (offset + INTEGER_BYTES) as usize;
         self.buf[ofs..ofs + bytes.len()].copy_from_slice(bytes);
     }
 
@@ -92,7 +94,7 @@ impl Page {
     pub fn get_date(&self, offset: i32) -> Option<NaiveDate> {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + 6];
-        let y = i32::from_be_bytes(bytes[0..4].try_into().unwrap());
+        let y = i32::from_be_bytes(bytes[0..INTEGER_BYTES as usize].try_into().unwrap());
         let m = bytes[4] as u32;
         let d = bytes[5] as u32;
         NaiveDate::from_ymd_opt(y, m, d)
@@ -197,7 +199,7 @@ mod tests {
 
     #[test]
     fn int() {
-        let mut p = Page::new(4);
+        let mut p = Page::new(INTEGER_BYTES);
 
         let values = [0, 1, -1, i32::MAX, i32::MIN];
 

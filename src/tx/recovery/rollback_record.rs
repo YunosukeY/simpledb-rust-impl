@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 
 use crate::{
-    file::page::Page, log::log_manager::LogManager, tx::transaction::Transaction, util::Result,
+    file::page::Page,
+    log::log_manager::LogManager,
+    tx::transaction::Transaction,
+    util::{Result, INTEGER_BYTES},
 };
 
 use super::log_record::{LogRecord, ROLLBACK};
@@ -24,15 +27,15 @@ impl RollbackRecord {
 
 impl From<Page> for RollbackRecord {
     fn from(page: Page) -> Self {
-        let tx_num = page.get_int(4);
+        let tx_num = page.get_int(INTEGER_BYTES);
         RollbackRecord { tx_num }
     }
 }
 impl From<&RollbackRecord> for Page {
     fn from(record: &RollbackRecord) -> Self {
-        let mut page = Page::new(8);
+        let mut page = Page::new(2 * INTEGER_BYTES);
         page.set_int(0, ROLLBACK);
-        page.set_int(4, record.tx_num);
+        page.set_int(INTEGER_BYTES, record.tx_num);
         page
     }
 }

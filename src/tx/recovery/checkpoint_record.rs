@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 
 use crate::{
-    file::page::Page, log::log_manager::LogManager, tx::transaction::Transaction, util::Result,
+    file::page::Page,
+    log::log_manager::LogManager,
+    tx::transaction::Transaction,
+    util::{Result, INTEGER_BYTES},
 };
 
 use super::log_record::{LogRecord, CHECKPOINT};
@@ -14,7 +17,7 @@ impl CheckpointRecord {
     }
 
     pub fn page(&self) -> Page {
-        let mut page = Page::new(4);
+        let mut page = Page::new(INTEGER_BYTES);
         page.set_int(0, CHECKPOINT);
         page
     }

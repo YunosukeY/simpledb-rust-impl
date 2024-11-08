@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     file::{block_id::BlockId, file_manager::FileManager, page::Page},
-    util::Result,
+    util::{Result, INTEGER_BYTES},
 };
 
 use super::log_iterator::LogIterator;
@@ -71,8 +71,8 @@ impl LogManager {
         let _lock = self.m.lock().unwrap();
 
         let mut boundary = self.log_page.get_int(0);
-        let bytes_needed = log_record.len() as i32 + 4;
-        if boundary - bytes_needed < 4 {
+        let bytes_needed = log_record.len() as i32 + INTEGER_BYTES;
+        if boundary - bytes_needed < INTEGER_BYTES {
             // flush
             let fm = Arc::as_ptr(&self.fm) as *mut FileManager;
             unsafe {
