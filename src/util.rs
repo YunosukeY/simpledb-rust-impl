@@ -1,6 +1,9 @@
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+pub const BOOL_BYTES: i32 = 1;
+pub const SHORT_BYTES: i32 = 2;
 pub const INTEGER_BYTES: i32 = 4;
+pub const DOUBLE_BYTES: i32 = 8;
 
 pub const MAX_WAIT_TIME_MILLIS: u128 = 100;
 
