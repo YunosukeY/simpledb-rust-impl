@@ -3,6 +3,8 @@
 
 use std::sync::{Arc, Mutex};
 
+use tracing::info;
+
 use crate::{
     buffer::buffer_manager::BufferManager,
     file::{block_id::BlockId, file_manager::FileManager},
@@ -52,7 +54,7 @@ impl Transaction {
 
     pub fn commit(&mut self) -> Result<()> {
         self.rm.commit()?;
-        // TODO log
+        info!(self.tx_num, "transaction committed");
         self.cm.release();
         self.my_buffers.unpin_all();
         Ok(())
@@ -63,7 +65,7 @@ impl Transaction {
         unsafe {
             (*rm).rollback(self);
         }
-        // TODO log
+        info!(self.tx_num, "transaction rolled back");
         self.cm.release();
         self.my_buffers.unpin_all();
     }
