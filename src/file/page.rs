@@ -4,9 +4,15 @@ use std::str::from_utf8;
 
 use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, TimeZone, Timelike};
 
+use crate::util::{BOOL_BYTES, DOUBLE_BYTES, INTEGER_BYTES, SHORT_BYTES};
+
 pub struct Page {
     pub(super) buf: Vec<u8>,
 }
+
+const DATE_LEN: i32 = INTEGER_BYTES + 2;
+const TIME_LEN: i32 = INTEGER_BYTES + 3;
+const DATETIME_LEN: i32 = SHORT_BYTES + 2 * INTEGER_BYTES + 5;
 
 impl Page {
     pub fn new(size: i32) -> Page {
@@ -20,33 +26,33 @@ impl Page {
     }
 
     pub fn int_len(_value: i32) -> i32 {
-        4
+        INTEGER_BYTES
     }
     pub fn get_int(&self, offset: i32) -> i32 {
         let ofs = offset as usize;
-        let bytes = &self.buf[ofs..ofs + 4];
+        let bytes = &self.buf[ofs..ofs + INTEGER_BYTES as usize];
         let a = bytes.try_into().unwrap();
         i32::from_be_bytes(a)
     }
     pub fn set_int(&mut self, offset: i32, value: i32) {
         let ofs = offset as usize;
-        self.buf[ofs..ofs + 4].copy_from_slice(&value.to_be_bytes());
+        self.buf[ofs..ofs + INTEGER_BYTES as usize].copy_from_slice(&value.to_be_bytes());
     }
 
     pub fn bytes_len(bytes: &[u8]) -> i32 {
-        bytes.len() as i32 + 4
+        bytes.len() as i32 + INTEGER_BYTES
     }
     pub fn get_bytes(&self, offset: i32) -> &[u8] {
         let len = self.get_int(offset);
 
-        let ofs = offset as usize + 4;
+        let ofs = (offset + INTEGER_BYTES) as usize;
         &self.buf[ofs..ofs + len as usize]
     }
     pub fn set_bytes(&mut self, offset: i32, bytes: &[u8]) {
         let len = bytes.len() as i32;
         self.set_int(offset, len);
 
-        let ofs = offset as usize + 4;
+        let ofs = (offset + INTEGER_BYTES) as usize;
         self.buf[ofs..ofs + bytes.len()].copy_from_slice(bytes);
     }
 
@@ -63,7 +69,7 @@ impl Page {
     }
 
     pub fn bool_len(_value: bool) -> i32 {
-        1
+        BOOL_BYTES
     }
     pub fn get_bool(&self, offset: i32) -> bool {
         self.buf[offset as usize] != 0
@@ -73,26 +79,26 @@ impl Page {
     }
 
     pub fn double_len(_value: f64) -> i32 {
-        8
+        DOUBLE_BYTES
     }
     pub fn get_double(&self, offset: i32) -> f64 {
         let ofs = offset as usize;
-        let bytes = &self.buf[ofs..ofs + 8];
+        let bytes = &self.buf[ofs..ofs + DOUBLE_BYTES as usize];
         let a = bytes.try_into().unwrap();
         f64::from_be_bytes(a)
     }
     pub fn set_double(&mut self, offset: i32, value: f64) {
         let ofs = offset as usize;
-        self.buf[ofs..ofs + 8].copy_from_slice(&value.to_be_bytes());
+        self.buf[ofs..ofs + DOUBLE_BYTES as usize].copy_from_slice(&value.to_be_bytes());
     }
 
     pub fn date_len(_value: &Option<NaiveDate>) -> i32 {
-        6
+        DATE_LEN
     }
     pub fn get_date(&self, offset: i32) -> Option<NaiveDate> {
         let ofs = offset as usize;
-        let bytes = &self.buf[ofs..ofs + 6];
-        let y = i32::from_be_bytes(bytes[0..4].try_into().unwrap());
+        let bytes = &self.buf[ofs..ofs + DATE_LEN as usize];
+        let y = i32::from_be_bytes(bytes[0..INTEGER_BYTES as usize].try_into().unwrap());
         let m = bytes[4] as u32;
         let d = bytes[5] as u32;
         NaiveDate::from_ymd_opt(y, m, d)
@@ -103,15 +109,15 @@ impl Page {
         let m = date.map_or(0, |d| d.month()) as u8;
         let d = date.map_or(0, |d| d.day()) as u8;
         let bytes = &[y[0], y[1], y[2], y[3], m, d];
-        self.buf[ofs..ofs + 6].copy_from_slice(bytes);
+        self.buf[ofs..ofs + DATE_LEN as usize].copy_from_slice(bytes);
     }
 
     pub fn time_len(_value: &Option<chrono::NaiveTime>) -> i32 {
-        7
+        TIME_LEN
     }
     pub fn get_time(&self, offset: i32) -> Option<NaiveTime> {
         let ofs = offset as usize;
-        let bytes = &self.buf[ofs..ofs + 7];
+        let bytes = &self.buf[ofs..ofs + TIME_LEN as usize];
         let h = bytes[0] as u32;
         let m = bytes[1] as u32;
         let s = bytes[2] as u32;
@@ -125,15 +131,15 @@ impl Page {
         let s = time.map_or(0, |d| d.second()) as u8;
         let f = time.map_or(0, |d| d.nanosecond()).to_be_bytes();
         let bytes = &[h, m, s, f[0], f[1], f[2], f[3]];
-        self.buf[ofs..ofs + 7].copy_from_slice(bytes);
+        self.buf[ofs..ofs + TIME_LEN as usize].copy_from_slice(bytes);
     }
 
     pub fn datetime_len(_value: &Option<DateTime<FixedOffset>>) -> i32 {
-        15
+        DATETIME_LEN
     }
     pub fn get_datetime(&self, offset: i32) -> Option<DateTime<FixedOffset>> {
         let ofs = offset as usize;
-        let bytes = &self.buf[ofs..ofs + 15];
+        let bytes = &self.buf[ofs..ofs + DATETIME_LEN as usize];
         let y = u16::from_be_bytes(bytes[0..2].try_into().unwrap()) as i32;
         let mo = bytes[2] as u32;
         let d = bytes[3] as u32;
@@ -168,7 +174,7 @@ impl Page {
         let bytes = &[
             y[0], y[1], mo, d, h, mi, s, f[0], f[1], f[2], f[3], tz[0], tz[1], tz[2], tz[3],
         ];
-        self.buf[ofs..ofs + 15].copy_from_slice(bytes);
+        self.buf[ofs..ofs + DATETIME_LEN as usize].copy_from_slice(bytes);
     }
 
     pub fn json_len(json: &Option<serde_json::Value>) -> i32 {
@@ -197,7 +203,7 @@ mod tests {
 
     #[test]
     fn int() {
-        let mut p = Page::new(4);
+        let mut p = Page::new(INTEGER_BYTES);
 
         let values = [0, 1, -1, i32::MAX, i32::MIN];
 

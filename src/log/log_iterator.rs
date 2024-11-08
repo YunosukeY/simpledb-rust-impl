@@ -2,7 +2,7 @@
 
 use crate::{
     file::{block_id::BlockId, file_manager::FileManager, page::Page},
-    util::Result,
+    util::{Result, INTEGER_BYTES},
 };
 
 pub(super) struct LogIterator<'a> {
@@ -55,7 +55,7 @@ impl<'a> Iterator for LogIterator<'a> {
             self.move_to_block().unwrap();
         }
         let record = self.page.get_bytes(self.current_pos);
-        self.current_pos += record.len() as i32 + 4;
+        self.current_pos += record.len() as i32 + INTEGER_BYTES;
         Some(record.to_vec())
     }
 }
