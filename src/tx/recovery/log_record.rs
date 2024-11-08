@@ -34,21 +34,21 @@ pub trait LogRecord {
 }
 
 pub fn create_log_record(bytes: Vec<u8>) -> Option<Box<dyn LogRecord>> {
-    let p = Page::from_bytes(&bytes);
+    let p = Page::from(bytes);
     match p.get_int(0) {
         CHECKPOINT => Some(Box::new(CheckpointRecord::new())),
-        START => Some(Box::new(StartRecord::from_page(p))),
-        COMMIT => Some(Box::new(CommitRecord::from_page(p))),
-        ROLLBACK => Some(Box::new(RollbackRecord::from_page(p))),
-        SET_INT => Some(Box::new(SetIntRecord::from_page(p))),
-        SET_BYTES => Some(Box::new(SetBytesRecord::from_page(p))),
-        SET_STRING => Some(Box::new(SetStringRecord::from_page(p))),
-        SET_BOOL => Some(Box::new(SetBoolRecord::from_page(p))),
-        SET_DOUBLE => Some(Box::new(SetDoubleRecord::from_page(p))),
-        SET_DATE => Some(Box::new(SetDateRecord::from_page(p))),
-        SET_TIME => Some(Box::new(SetTimeRecord::from_page(p))),
-        SET_DATETIME => Some(Box::new(SetDatetimeRecord::from_page(p))),
-        SET_JSON => Some(Box::new(SetJsonRecord::from_page(p))),
+        START => Some(Box::new(StartRecord::from(p))),
+        COMMIT => Some(Box::new(CommitRecord::from(p))),
+        ROLLBACK => Some(Box::new(RollbackRecord::from(p))),
+        SET_INT => Some(Box::new(SetIntRecord::from(p))),
+        SET_BYTES => Some(Box::new(SetBytesRecord::from(p))),
+        SET_STRING => Some(Box::new(SetStringRecord::from(p))),
+        SET_BOOL => Some(Box::new(SetBoolRecord::from(p))),
+        SET_DOUBLE => Some(Box::new(SetDoubleRecord::from(p))),
+        SET_DATE => Some(Box::new(SetDateRecord::from(p))),
+        SET_TIME => Some(Box::new(SetTimeRecord::from(p))),
+        SET_DATETIME => Some(Box::new(SetDatetimeRecord::from(p))),
+        SET_JSON => Some(Box::new(SetJsonRecord::from(p))),
         _ => None,
     }
 }

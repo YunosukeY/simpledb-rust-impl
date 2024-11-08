@@ -27,7 +27,14 @@ impl SetBytesRecord {
         }
     }
 
-    pub fn from_page(page: Page) -> Self {
+    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
+        let page = Page::from(self);
+        lm.append(page.buffer())
+    }
+}
+
+impl From<Page> for SetBytesRecord {
+    fn from(page: Page) -> Self {
         let tpos = 4;
         let tx_num = page.get_int(tpos);
 
@@ -50,30 +57,25 @@ impl SetBytesRecord {
             block: BlockId::new(filename, block_num),
         }
     }
-
-    fn page(&self) -> Page {
+}
+impl From<&SetBytesRecord> for Page {
+    fn from(record: &SetBytesRecord) -> Self {
         let tpos = 4;
         let fpos = tpos + 4;
-        let bpos = fpos + Page::str_len(self.block.filename());
+        let bpos = fpos + Page::str_len(record.block.filename());
         let opos = bpos + 4;
         let vpos = opos + 4;
 
-        let rec = vec![0; (vpos + Page::bytes_len(&self.old_value)) as usize];
-        let mut page = Page::from_bytes(&rec);
+        let mut page = Page::new(vpos + Page::bytes_len(&record.old_value));
 
         page.set_int(0, SET_BYTES);
-        page.set_int(tpos, self.tx_num);
-        page.set_string(fpos, self.block.filename());
-        page.set_int(bpos, self.block.block_num());
-        page.set_int(opos, self.offset);
-        page.set_bytes(vpos, &self.old_value);
+        page.set_int(tpos, record.tx_num);
+        page.set_string(fpos, record.block.filename());
+        page.set_int(bpos, record.block.block_num());
+        page.set_int(opos, record.offset);
+        page.set_bytes(vpos, &record.old_value);
 
         page
-    }
-
-    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
-        let page = self.page();
-        lm.append(page.buffer())
     }
 }
 
@@ -112,7 +114,7 @@ mod tests {
     fn test() {
         let record = SetBytesRecord::new(1, BlockId::new("filename".to_string(), 2), 3, &[4, 5, 6]);
 
-        let record2 = SetBytesRecord::from_page(record.page());
+        let record2 = SetBytesRecord::from(Page::from(&record));
 
         assert_eq!(record, record2);
     }

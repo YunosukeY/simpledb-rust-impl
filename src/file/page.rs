@@ -15,12 +15,6 @@ impl Page {
         }
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Page {
-        Page {
-            buf: bytes.to_vec(),
-        }
-    }
-
     pub fn buffer(&self) -> &[u8] {
         &self.buf
     }
@@ -188,6 +182,12 @@ impl Page {
     pub fn set_json(&mut self, offset: i32, json: &Option<serde_json::Value>) {
         let s = json.clone().map_or("".to_string(), |j| j.to_string());
         self.set_string(offset, &s);
+    }
+}
+
+impl From<Vec<u8>> for Page {
+    fn from(buf: Vec<u8>) -> Self {
+        Page { buf }
     }
 }
 

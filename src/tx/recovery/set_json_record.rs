@@ -32,7 +32,14 @@ impl SetJsonRecord {
         }
     }
 
-    pub fn from_page(page: Page) -> Self {
+    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
+        let page = Page::from(self);
+        lm.append(page.buffer())
+    }
+}
+
+impl From<Page> for SetJsonRecord {
+    fn from(page: Page) -> Self {
         let tpos = 4;
         let tx_num = page.get_int(tpos);
 
@@ -55,30 +62,25 @@ impl SetJsonRecord {
             block: BlockId::new(filename, block_num),
         }
     }
-
-    pub fn page(&self) -> Page {
+}
+impl From<&SetJsonRecord> for Page {
+    fn from(record: &SetJsonRecord) -> Self {
         let tpos = 4;
         let fpos = tpos + 4;
-        let bpos = fpos + Page::str_len(self.block.filename());
+        let bpos = fpos + Page::str_len(record.block.filename());
         let opos = bpos + 4;
         let vpos = opos + 4;
 
-        let rec = vec![0; (vpos + Page::json_len(&self.old_value)) as usize];
-        let mut page = Page::from_bytes(&rec);
+        let mut page = Page::new(vpos + Page::json_len(&record.old_value));
 
         page.set_int(0, SET_JSON);
-        page.set_int(tpos, self.tx_num);
-        page.set_string(fpos, self.block.filename());
-        page.set_int(bpos, self.block.block_num());
-        page.set_int(opos, self.offset);
-        page.set_json(vpos, &self.old_value);
+        page.set_int(tpos, record.tx_num);
+        page.set_string(fpos, record.block.filename());
+        page.set_int(bpos, record.block.block_num());
+        page.set_int(opos, record.offset);
+        page.set_json(vpos, &record.old_value);
 
         page
-    }
-
-    pub fn write_to_log(&self, lm: &mut LogManager) -> Result<i32> {
-        let page = self.page();
-        lm.append(page.buffer())
     }
 }
 
@@ -122,7 +124,7 @@ mod test {
             &Some(serde_json::json!({ "key": "value" })),
         );
 
-        let record2 = SetJsonRecord::from_page(record.page());
+        let record2 = SetJsonRecord::from(Page::from(&record));
 
         assert_eq!(record, record2);
     }
