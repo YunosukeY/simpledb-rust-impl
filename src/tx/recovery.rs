@@ -1,6 +1,7 @@
 pub mod checkpoint_record;
 pub mod commit_record;
 pub mod log_record;
+pub mod nq_ckpt_record;
 pub mod recovery_manager;
 pub mod rollback_record;
 pub mod set_bool_record;

@@ -19,12 +19,16 @@ use crate::{
 use super::{
     buffer_list::BufferList,
     concurrency::{concurrency_manager::ConcurrencyManager, lock_table::LockTable},
-    recovery::{checkpoint_record::CheckpointRecord, recovery_manager::RecoveryManager},
+    recovery::{
+        checkpoint_record::CheckpointRecord, nq_ckpt_record::NqCkptRecord,
+        recovery_manager::RecoveryManager,
+    },
 };
 
 static NEXT_TX_NUM: Mutex<i32> = Mutex::new(0);
 static CHECKPOINT_LOCK: Mutex<()> = Mutex::new(());
 static TRANSACTION_LOCK: RwLock<()> = RwLock::new(());
+static TRANSACTIONS: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 const END_OF_FILE: i32 = -1;
 
 pub struct Transaction<'a> {
@@ -44,13 +48,14 @@ impl<'a> Transaction<'a> {
         bm: Arc<BufferManager>,
         lock_table: Arc<LockTable>,
     ) -> Self {
+        let tx_num = Self::next_tx_number();
         let tx_lock = {
             // Wait if a checkpoint is in progress.
             let _cp_lock = CHECKPOINT_LOCK.lock().unwrap();
             // Mark that some transactions are in progress.
+            TRANSACTIONS.lock().unwrap().push(tx_num);
             TRANSACTION_LOCK.read().unwrap()
         };
-        let tx_num = Self::next_tx_number();
         let rm = RecoveryManager::new(tx_num, lm, bm.clone());
         let cm = ConcurrencyManager::new(lock_table);
         let my_buffers = BufferList::new(bm.clone());
@@ -70,6 +75,7 @@ impl<'a> Transaction<'a> {
         info!(self.tx_num, "transaction committed");
         self.cm.release();
         self.my_buffers.unpin_all();
+        TRANSACTIONS.lock().unwrap().retain(|&x| x != self.tx_num);
         Ok(())
     }
 
@@ -106,6 +112,28 @@ impl<'a> Transaction<'a> {
         Ok(())
     }
 
+    // Nonquiescent Checkpointing
+    pub fn nq_ckpt(bm: Arc<BufferManager>, lm: Arc<LogManager>) -> Result<()> {
+        // Stop accepting new transactions.
+        let _cp_lock = CHECKPOINT_LOCK.lock().unwrap();
+
+        // Flush all modified buffers.
+        let bm = Arc::as_ptr(&bm) as *mut BufferManager;
+        unsafe {
+            (*bm).flush_all(-1)?;
+        }
+
+        // Write the record <NQCKPT T1 k> into the log.
+        let tx_nums = TRANSACTIONS.lock().unwrap().clone();
+        let lm = Arc::as_ptr(&lm) as *mut LogManager;
+        unsafe {
+            let lsn = NqCkptRecord::new(tx_nums).write_to_log(&mut *lm)?;
+            (*lm).flush(lsn)?;
+        }
+
+        Ok(())
+    }
+
     pub fn rollback(mut self) {
         let rm = &mut self.rm as *mut RecoveryManager;
         unsafe {
@@ -114,6 +142,7 @@ impl<'a> Transaction<'a> {
         info!(self.tx_num, "transaction rolled back");
         self.cm.release();
         self.my_buffers.unpin_all();
+        TRANSACTIONS.lock().unwrap().retain(|&x| x != self.tx_num);
     }
 
     pub fn recover(mut self) {
@@ -127,6 +156,7 @@ impl<'a> Transaction<'a> {
         }
         self.cm.release();
         self.my_buffers.unpin_all();
+        TRANSACTIONS.lock().unwrap().retain(|&x| x != self.tx_num);
     }
 
     pub fn pin(&mut self, block: &BlockId) -> Result<()> {
@@ -1120,8 +1150,6 @@ mod tests {
 
     mod checkpoint {
 
-        use crate::tx::concurrency::lock_table;
-
         use super::*;
 
         #[test]
@@ -1132,7 +1160,7 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let lock_table = Arc::new(lock_table::LockTable::new());
+            let lock_table = Arc::new(LockTable::new());
 
             let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             let res = Transaction::checkpoint(bm.clone(), lm.clone());
@@ -1148,7 +1176,7 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let lock_table = Arc::new(lock_table::LockTable::new());
+            let lock_table = Arc::new(LockTable::new());
 
             let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             let t = thread::spawn(move || {
@@ -1167,7 +1195,7 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let lock_table = Arc::new(lock_table::LockTable::new());
+            let lock_table = Arc::new(LockTable::new());
 
             let tx1 = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             let t1 = {
@@ -1184,6 +1212,56 @@ mod tests {
             assert!(!t2.is_finished()); // starting new tx is blocked until checkpoint is finished
 
             drop(tx1);
+            t1.join().unwrap();
+            thread::sleep(std::time::Duration::from_millis(100)); // HACK
+            assert!(t2.is_finished());
+        }
+    }
+
+    mod nq_ckpt {
+        use super::*;
+
+        #[test]
+        fn not_blocked() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/nq_ckpt/not_blocked"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(LockTable::new());
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            let res = Transaction::nq_ckpt(bm.clone(), lm.clone());
+
+            assert!(res.is_ok());
+        }
+
+        #[test]
+        fn new_tx_is_kept_waiting() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/nq_ckpt/new_tx_is_kept_waiting"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(LockTable::new());
+
+            let cp_lock = CHECKPOINT_LOCK.lock().unwrap(); // HACK to make nqckpt start waiting
+            let t1 = {
+                let bm = bm.clone();
+                let lm = lm.clone();
+                thread::spawn(move || {
+                    let res = Transaction::nq_ckpt(bm, lm);
+                    assert!(res.is_ok());
+                })
+            };
+            let t2 = thread::spawn(move || {
+                let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            });
+            assert!(!t2.is_finished()); // starting new tx is blocked until nqckpt is finished
+
+            drop(cp_lock); // start nqckpt
             t1.join().unwrap();
             thread::sleep(std::time::Duration::from_millis(100)); // HACK
             assert!(t2.is_finished());

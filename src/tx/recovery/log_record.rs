@@ -3,7 +3,7 @@
 use crate::{file::page::Page, tx::transaction::Transaction};
 
 use super::{
-    checkpoint_record::CheckpointRecord, commit_record::CommitRecord,
+    checkpoint_record::CheckpointRecord, commit_record::CommitRecord, nq_ckpt_record::NqCkptRecord,
     rollback_record::RollbackRecord, set_bool_record::SetBoolRecord,
     set_bytes_record::SetBytesRecord, set_date_record::SetDateRecord,
     set_datetime_record::SetDatetimeRecord, set_double_record::SetDoubleRecord,
@@ -12,6 +12,7 @@ use super::{
 };
 
 pub const CHECKPOINT: i32 = 0;
+pub const NQCKPT: i32 = 13;
 pub const START: i32 = 1;
 pub const COMMIT: i32 = 2;
 pub const ROLLBACK: i32 = 3;
@@ -37,6 +38,7 @@ pub fn create_log_record(bytes: Vec<u8>) -> Option<Box<dyn LogRecord>> {
     let p = Page::from(bytes);
     match p.get_int(0) {
         CHECKPOINT => Some(Box::new(CheckpointRecord::new())),
+        NQCKPT => Some(Box::new(NqCkptRecord::from(p))),
         START => Some(Box::new(StartRecord::from(p))),
         COMMIT => Some(Box::new(CommitRecord::from(p))),
         ROLLBACK => Some(Box::new(RollbackRecord::from(p))),
