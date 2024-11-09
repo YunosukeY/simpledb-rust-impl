@@ -4,27 +4,31 @@ use std::collections::HashMap;
 
 use crate::{
     file::block_id::BlockId,
-    util::{current_time_millis, waiting_too_long, CondMutex, Result, MAX_WAIT_TIME_MILLIS},
+    util::{
+        current_time_millis, waiting_too_long, ConcurrentHashMap, CondMutex, Result,
+        MAX_WAIT_TIME_MILLIS,
+    },
 };
 
 pub struct LockTable {
-    m: CondMutex<()>,
+    ms: ConcurrentHashMap<BlockId, CondMutex<()>>,
     locks: HashMap<BlockId, i32>,
 }
 
 impl LockTable {
     pub fn new() -> Self {
         Self {
-            m: CondMutex::new(()),
+            ms: ConcurrentHashMap::new(),
             locks: HashMap::new(),
         }
     }
 
     pub(super) fn s_lock(&mut self, block: &BlockId) -> Result<()> {
-        let mut lock = self.m.lock();
+        let m = self.ms.get_or_insert(block, CondMutex::new(()));
+        let mut lock = m.lock();
         let start_time = current_time_millis();
         while Self::has_x_lock(&self.locks, block) && !waiting_too_long(start_time) {
-            lock = self.m.wait_timeout(lock, MAX_WAIT_TIME_MILLIS as u64)
+            lock = m.wait_timeout(lock, MAX_WAIT_TIME_MILLIS as u64)
         }
         if Self::has_x_lock(&self.locks, block) {
             return Err("deadlock".into());
@@ -35,10 +39,11 @@ impl LockTable {
     }
 
     pub(super) fn x_lock(&mut self, block: &BlockId) -> Result<()> {
-        let mut lock = self.m.lock();
+        let m = self.ms.get_or_insert(block, CondMutex::new(()));
+        let mut lock = m.lock();
         let start_time = current_time_millis();
         while Self::has_other_s_locks(&self.locks, block) && !waiting_too_long(start_time) {
-            lock = self.m.wait_timeout(lock, MAX_WAIT_TIME_MILLIS as u64);
+            lock = m.wait_timeout(lock, MAX_WAIT_TIME_MILLIS as u64);
         }
         if Self::has_other_s_locks(&self.locks, block) {
             return Err("deadlock".into());
@@ -49,13 +54,14 @@ impl LockTable {
     }
 
     pub(super) fn unlock(&mut self, block: &BlockId) {
-        let _lock = self.m.lock();
+        let m = self.ms.get_or_insert(block, CondMutex::new(()));
+        let _lock = m.lock();
         let value = Self::lock_value(&self.locks, block);
         if value > 1 {
             self.locks.insert(block.clone(), value - 1);
         } else {
             self.locks.remove(block);
-            self.m.notify_all();
+            m.notify_all();
         }
     }
 

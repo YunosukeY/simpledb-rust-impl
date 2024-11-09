@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
-use std::sync::{Condvar, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Condvar, Mutex},
+};
 
 use tracing::Level;
 
@@ -68,5 +71,27 @@ impl<T> CondMutex<T> {
 
     pub fn notify_all(&self) {
         self.cond.notify_all();
+    }
+}
+
+pub struct ConcurrentHashMap<K, V> {
+    m: Mutex<()>,
+    map: HashMap<K, V>,
+}
+
+impl<K: Eq + std::hash::Hash + Clone, V> ConcurrentHashMap<K, V> {
+    pub fn new() -> Self {
+        Self {
+            m: Mutex::new(()),
+            map: HashMap::new(),
+        }
+    }
+
+    pub fn get_or_insert(&mut self, key: &K, value: V) -> &V {
+        let _lock = self.m.lock().unwrap();
+        if !self.map.contains_key(key) {
+            self.map.insert(key.clone(), value);
+        }
+        self.map.get(key).unwrap()
     }
 }
