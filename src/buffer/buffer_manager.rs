@@ -165,7 +165,7 @@ mod tests {
             let buf = bm.pin(&BlockId::new("testfile".to_string(), i)).unwrap();
             assert_eq!(buf, i);
             assert_eq!(bm.available(), 2 - i);
-            buffers.push(buf as i32);
+            buffers.push(buf);
         }
 
         // free
@@ -178,7 +178,7 @@ mod tests {
             let buf = bm.pin(&BlockId::new("testfile".to_string(), i)).unwrap();
             assert_eq!(buf, i);
             assert_eq!(bm.available(), 1 - i);
-            buffers.push(buf as i32);
+            buffers.push(buf);
         }
 
         // buffer is full
@@ -194,7 +194,7 @@ mod tests {
         let buf = bm.pin(&BlockId::new("testfile".to_string(), 3)).unwrap();
         assert_eq!(buf, 2);
         assert_eq!(bm.available(), 0);
-        buffers.push(buf as i32);
+        buffers.push(buf);
 
         // delete testfile
         std::fs::remove_file("testdata/buffer/buffer_manager/pin_and_unpin/testfile").unwrap();

@@ -566,7 +566,7 @@ mod tests {
             tx.pin(&block).unwrap();
             tx.set_bool(&block, 0, true, true).unwrap();
 
-            assert_eq!(tx.get_bool(&block, 0).unwrap(), true);
+            assert!(tx.get_bool(&block, 0).unwrap());
         }
 
         #[test]
@@ -585,7 +585,7 @@ mod tests {
             tx.rollback();
 
             tx.pin(&block).unwrap();
-            assert_eq!(tx.get_bool(&block, 0).unwrap(), false);
+            assert!(!tx.get_bool(&block, 0).unwrap());
         }
 
         #[test]
@@ -605,7 +605,7 @@ mod tests {
             tx.recover();
 
             tx.pin(&block).unwrap();
-            assert_eq!(tx.get_bool(&block, 0).unwrap(), true);
+            assert!(tx.get_bool(&block, 0).unwrap());
         }
     }
 

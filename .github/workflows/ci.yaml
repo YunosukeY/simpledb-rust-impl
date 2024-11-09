@@ -16,12 +16,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: cargo clippy
+      - run: cargo clippy --all-targets
   check:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: cargo check
+      - run: cargo check --all-targets
   test:
     runs-on: ubuntu-24.04
     # https://github.com/taiki-e/cargo-llvm-cov#continuous-integration
