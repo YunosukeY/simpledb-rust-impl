@@ -65,7 +65,7 @@ impl<'a> Transaction<'a> {
         }
     }
 
-    pub fn commit(&mut self) -> Result<()> {
+    pub fn commit(mut self) -> Result<()> {
         self.rm.commit()?;
         info!(self.tx_num, "transaction committed");
         self.cm.release();
@@ -106,25 +106,27 @@ impl<'a> Transaction<'a> {
         Ok(())
     }
 
-    pub fn rollback(&mut self) {
+    pub fn rollback(mut self) {
         let rm = &mut self.rm as *mut RecoveryManager;
         unsafe {
-            (*rm).rollback(self);
+            (*rm).rollback(&mut self);
         }
         info!(self.tx_num, "transaction rolled back");
         self.cm.release();
         self.my_buffers.unpin_all();
     }
 
-    pub fn recover(&mut self) {
+    pub fn recover(mut self) {
         let bm = Arc::as_ptr(&self.bm) as *mut BufferManager;
         unsafe {
             (*bm).flush_all(self.tx_num).unwrap();
         }
         let rm = &mut self.rm as *mut RecoveryManager;
         unsafe {
-            (*rm).recover(self);
+            (*rm).recover(&mut self);
         }
+        self.cm.release();
+        self.my_buffers.unpin_all();
     }
 
     pub fn pin(&mut self, block: &BlockId) -> Result<()> {
@@ -380,9 +382,10 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_int(&block, 0, 123, true).unwrap();
 
@@ -390,40 +393,57 @@ mod tests {
         }
 
         #[test]
-        fn set_but_rollback() {
+        fn rollback() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/int/commit_but_rollback"),
+                PathBuf::from("testdata/tx/transaction/int/rollback"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block).unwrap();
-            tx.set_int(&block, 0, 123, true).unwrap();
-            tx.rollback();
-
-            tx.pin(&block).unwrap();
-            assert_eq!(tx.get_int(&block, 0).unwrap(), 0);
-        }
-
-        #[test]
-        fn commit_and_recover() {
-            let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/int/commit_and_recover"),
-                400,
-            ));
-            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
-            let block = BlockId::new("tempfile".to_string(), 0);
-
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_int(&block, 0, 123, true).unwrap();
             tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_int(&block, 0, 456, true).unwrap();
+            tx.rollback();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_int(&block, 0).unwrap(), 123);
+        }
+
+        #[test]
+        fn recover() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/int/recover"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(LockTable::new());
+            let block = BlockId::new("tempfile".to_string(), 0);
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_int(&block, 0, 123, true).unwrap();
+            tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_int(&block, 0, 456, true).unwrap();
+            tx.unpin(&block);
+            tx.cm.release();
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.recover();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             assert_eq!(tx.get_int(&block, 0).unwrap(), 123);
         }
@@ -440,9 +460,10 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_bytes(&block, 0, &[1, 2, 3], true).unwrap();
 
@@ -450,40 +471,57 @@ mod tests {
         }
 
         #[test]
-        fn set_but_rollback() {
+        fn rollback() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/bytes/set_but_rollback"),
+                PathBuf::from("testdata/tx/transaction/bytes/rollback"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block).unwrap();
-            tx.set_bytes(&block, 0, &[1, 2, 3], true).unwrap();
-            tx.rollback();
-
-            tx.pin(&block).unwrap();
-            assert_eq!(tx.get_bytes(&block, 0).unwrap(), &[] as &[u8]);
-        }
-
-        #[test]
-        fn commit_and_recover() {
-            let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/bytes/commit_and_recover"),
-                400,
-            ));
-            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
-            let block = BlockId::new("tempfile".to_string(), 0);
-
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_bytes(&block, 0, &[1, 2, 3], true).unwrap();
             tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_bytes(&block, 0, &[4, 5, 6], true).unwrap();
+            tx.rollback();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_bytes(&block, 0).unwrap(), &[1, 2, 3]);
+        }
+
+        #[test]
+        fn recover() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/bytes/recover"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(LockTable::new());
+            let block = BlockId::new("tempfile".to_string(), 0);
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_bytes(&block, 0, &[1, 2, 3], true).unwrap();
+            tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_bytes(&block, 0, &[4, 5, 6], true).unwrap();
+            tx.unpin(&block);
+            tx.cm.release();
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.recover();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             assert_eq!(tx.get_bytes(&block, 0).unwrap(), &[1, 2, 3]);
         }
@@ -500,9 +538,10 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_string(&block, 0, "abc", true).unwrap();
 
@@ -510,40 +549,57 @@ mod tests {
         }
 
         #[test]
-        fn set_but_rollback() {
+        fn rollback() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/string/set_but_rollback"),
+                PathBuf::from("testdata/tx/transaction/string/rollback"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block).unwrap();
-            tx.set_string(&block, 0, "abc", true).unwrap();
-            tx.rollback();
-
-            tx.pin(&block).unwrap();
-            assert_eq!(tx.get_string(&block, 0).unwrap(), "");
-        }
-
-        #[test]
-        fn commit_and_recover() {
-            let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/string/commit_and_recover"),
-                400,
-            ));
-            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
-            let block = BlockId::new("tempfile".to_string(), 0);
-
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_string(&block, 0, "abc", true).unwrap();
             tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_string(&block, 0, "def", true).unwrap();
+            tx.rollback();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_string(&block, 0).unwrap(), "abc");
+        }
+
+        #[test]
+        fn recover() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/string/recover"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(LockTable::new());
+            let block = BlockId::new("tempfile".to_string(), 0);
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_string(&block, 0, "abc", true).unwrap();
+            tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_string(&block, 0, "def", true).unwrap();
+            tx.unpin(&block);
+            tx.cm.release();
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.recover();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             assert_eq!(tx.get_string(&block, 0).unwrap(), "abc");
         }
@@ -560,9 +616,10 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_bool(&block, 0, true, true).unwrap();
 
@@ -570,40 +627,57 @@ mod tests {
         }
 
         #[test]
-        fn set_but_rollback() {
+        fn rollback() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/bool/set_but_rollback"),
+                PathBuf::from("testdata/tx/transaction/bool/rollback"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block).unwrap();
-            tx.set_bool(&block, 0, true, true).unwrap();
-            tx.rollback();
-
-            tx.pin(&block).unwrap();
-            assert!(!tx.get_bool(&block, 0).unwrap());
-        }
-
-        #[test]
-        fn commit_and_recover() {
-            let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/bool/commit_and_recover"),
-                400,
-            ));
-            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
-            let block = BlockId::new("tempfile".to_string(), 0);
-
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_bool(&block, 0, true, true).unwrap();
             tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_bool(&block, 0, false, true).unwrap();
+            tx.rollback();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            assert!(tx.get_bool(&block, 0).unwrap());
+        }
+
+        #[test]
+        fn recover() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/bool/recover"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(LockTable::new());
+            let block = BlockId::new("tempfile".to_string(), 0);
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_bool(&block, 0, true, true).unwrap();
+            tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_bool(&block, 0, false, true).unwrap();
+            tx.unpin(&block);
+            tx.cm.release();
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.recover();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             assert!(tx.get_bool(&block, 0).unwrap());
         }
@@ -620,9 +694,10 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_double(&block, 0, 1.23, true).unwrap();
 
@@ -630,40 +705,57 @@ mod tests {
         }
 
         #[test]
-        fn set_but_rollback() {
+        fn rollback() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/double/set_but_rollback"),
+                PathBuf::from("testdata/tx/transaction/double/rollback"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block).unwrap();
-            tx.set_double(&block, 0, 1.23, true).unwrap();
-            tx.rollback();
-
-            tx.pin(&block).unwrap();
-            assert_eq!(tx.get_double(&block, 0).unwrap(), 0.0);
-        }
-
-        #[test]
-        fn commit_and_recover() {
-            let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/double/commit_and_recover"),
-                400,
-            ));
-            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
-            let block = BlockId::new("tempfile".to_string(), 0);
-
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_double(&block, 0, 1.23, true).unwrap();
             tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_double(&block, 0, 4.56, true).unwrap();
+            tx.rollback();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            assert_eq!(tx.get_double(&block, 0).unwrap(), 1.23);
+        }
+
+        #[test]
+        fn recover() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/double/recover"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(LockTable::new());
+            let block = BlockId::new("tempfile".to_string(), 0);
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_double(&block, 0, 1.23, true).unwrap();
+            tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_double(&block, 0, 4.56, true).unwrap();
+            tx.unpin(&block);
+            tx.cm.release();
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.recover();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             assert_eq!(tx.get_double(&block, 0).unwrap(), 1.23);
         }
@@ -680,9 +772,10 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_date(
                 &block,
@@ -699,57 +792,63 @@ mod tests {
         }
 
         #[test]
-        fn set_but_rollback() {
+        fn rollback() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/date/set_but_rollback"),
+                PathBuf::from("testdata/tx/transaction/date/rollback"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
+            let date1 = chrono::NaiveDate::from_ymd_opt(2021, 1, 1);
+            let date2 = chrono::NaiveDate::from_ymd_opt(2021, 12, 31);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_date(
-                &block,
-                0,
-                &chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
-                true,
-            )
-            .unwrap();
+            tx.set_date(&block, 0, &date1, true).unwrap();
+            tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_date(&block, 0, &date2, true).unwrap();
             tx.rollback();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            assert_eq!(tx.get_date(&block, 0).unwrap(), None);
+            assert_eq!(tx.get_date(&block, 0).unwrap(), date1);
         }
 
         #[test]
-        fn commit_and_recover() {
+        fn recover() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/date/commit_and_recover"),
+                PathBuf::from("testdata/tx/transaction/date/recover"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
+            let date1 = chrono::NaiveDate::from_ymd_opt(2021, 1, 1);
+            let date2 = chrono::NaiveDate::from_ymd_opt(2021, 12, 31);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_date(
-                &block,
-                0,
-                &chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
-                true,
-            )
-            .unwrap();
+            tx.set_date(&block, 0, &date1, true).unwrap();
             tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_date(&block, 0, &date2, true).unwrap();
+            tx.unpin(&block);
+            tx.cm.release();
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.recover();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            assert_eq!(
-                tx.get_date(&block, 0).unwrap(),
-                chrono::NaiveDate::from_ymd_opt(2021, 1, 1)
-            );
+            assert_eq!(tx.get_date(&block, 0).unwrap(), date1);
         }
     }
 
@@ -764,9 +863,10 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_time(
                 &block,
@@ -783,60 +883,63 @@ mod tests {
         }
 
         #[test]
-        fn set_but_rollback() {
+        fn rollback() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/time/set_but_rollback"),
+                PathBuf::from("testdata/tx/transaction/time/rollback"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
+            let time1 = chrono::NaiveTime::from_hms_opt(1, 2, 3);
+            let time2 = chrono::NaiveTime::from_hms_opt(4, 5, 6);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_time(
-                &block,
-                0,
-                &chrono::NaiveTime::from_hms_opt(12, 34, 56),
-                true,
-            )
-            .unwrap();
+            tx.set_time(&block, 0, &time1, true).unwrap();
+            tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_time(&block, 0, &time2, true).unwrap();
             tx.rollback();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            assert_eq!(
-                tx.get_time(&block, 0).unwrap(),
-                chrono::NaiveTime::from_hms_opt(0, 0, 0)
-            );
+            assert_eq!(tx.get_time(&block, 0).unwrap(), time1);
         }
 
         #[test]
-        fn commit_and_recover() {
+        fn recover() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/time/commit_and_recover"),
+                PathBuf::from("testdata/tx/transaction/time/recover"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
+            let time1 = chrono::NaiveTime::from_hms_opt(1, 2, 3);
+            let time2 = chrono::NaiveTime::from_hms_opt(4, 5, 6);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_time(
-                &block,
-                0,
-                &chrono::NaiveTime::from_hms_opt(12, 34, 56),
-                true,
-            )
-            .unwrap();
+            tx.set_time(&block, 0, &time1, true).unwrap();
             tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_time(&block, 0, &time2, true).unwrap();
+            tx.unpin(&block);
+            tx.cm.release();
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.recover();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            assert_eq!(
-                tx.get_time(&block, 0).unwrap(),
-                chrono::NaiveTime::from_hms_opt(12, 34, 56)
-            );
+            assert_eq!(tx.get_time(&block, 0).unwrap(), time1);
         }
     }
 
@@ -851,10 +954,11 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
             let now = chrono::Utc::now().fixed_offset();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_datetime(&block, 0, &Some(now), true).unwrap();
 
@@ -862,44 +966,63 @@ mod tests {
         }
 
         #[test]
-        fn set_but_rollback() {
+        fn rollback() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/datetime/set_but_rollback"),
+                PathBuf::from("testdata/tx/transaction/datetime/rollback"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
-            let now = chrono::Utc::now().fixed_offset();
+            let datetime1 = chrono::DateTime::parse_from_rfc3339("2021-01-01T00:00:00Z").unwrap();
+            let datetime2 = chrono::DateTime::parse_from_rfc3339("2021-12-31T23:59:59Z").unwrap();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_datetime(&block, 0, &Some(now), true).unwrap();
+            tx.set_datetime(&block, 0, &Some(datetime1), true).unwrap();
+            tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_datetime(&block, 0, &Some(datetime2), true).unwrap();
             tx.rollback();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            assert_eq!(tx.get_datetime(&block, 0).unwrap(), None);
+            assert_eq!(tx.get_datetime(&block, 0).unwrap(), Some(datetime1));
         }
 
         #[test]
-        fn commit_and_recover() {
+        fn recover() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/datetime/commit_and_recover"),
+                PathBuf::from("testdata/tx/transaction/datetime/recover"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
-            let now = chrono::Utc::now().fixed_offset();
+            let datetime1 = chrono::DateTime::parse_from_rfc3339("2021-01-01T00:00:00Z").unwrap();
+            let datetime2 = chrono::DateTime::parse_from_rfc3339("2021-12-31T23:59:59Z").unwrap();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_datetime(&block, 0, &Some(now), true).unwrap();
+            tx.set_datetime(&block, 0, &Some(datetime1), true).unwrap();
             tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_datetime(&block, 0, &Some(datetime2), true).unwrap();
+            tx.unpin(&block);
+            tx.cm.release();
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.recover();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            assert_eq!(tx.get_datetime(&block, 0).unwrap().unwrap(), now);
+            assert_eq!(tx.get_datetime(&block, 0).unwrap(), Some(datetime1));
         }
     }
 
@@ -914,9 +1037,10 @@ mod tests {
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
                 .unwrap();
@@ -928,42 +1052,64 @@ mod tests {
         }
 
         #[test]
-        fn set_but_rollback() {
+        fn rollback() {
             let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/json/set_but_rollback"),
+                PathBuf::from("testdata/tx/transaction/json/rollback"),
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
+            let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
 
-            tx.pin(&block).unwrap();
-            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
-                .unwrap();
-            tx.rollback();
-
-            tx.pin(&block).unwrap();
-            assert_eq!(tx.get_json(&block, 0).unwrap(), None);
-        }
-
-        #[test]
-        fn commit_and_recover() {
-            let fm = Arc::new(FileManager::new(
-                PathBuf::from("testdata/tx/transaction/json/commit_and_recover"),
-                400,
-            ));
-            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
-            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
-            let block = BlockId::new("tempfile".to_string(), 0);
-
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
                 .unwrap();
             tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value2"})), true)
+                .unwrap();
+            tx.rollback();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            assert_eq!(
+                tx.get_json(&block, 0).unwrap(),
+                Some(serde_json::json!({"key": "value"}))
+            );
+        }
+
+        #[test]
+        fn recover() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/json/recover"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(LockTable::new());
+            let block = BlockId::new("tempfile".to_string(), 0);
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
+                .unwrap();
+            tx.commit().unwrap();
+
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            tx.pin(&block).unwrap();
+            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value2"})), true)
+                .unwrap();
+            tx.unpin(&block);
+            tx.cm.release();
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.recover();
 
+            let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             assert_eq!(
                 tx.get_json(&block, 0).unwrap().unwrap(),
