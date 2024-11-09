@@ -2,21 +2,19 @@
 
 use std::{
     collections::{BTreeSet, HashMap},
-    sync::{Arc, Condvar, Mutex},
-    time::Duration,
+    sync::Arc,
 };
 
 use crate::{
     file::{block_id::BlockId, file_manager::FileManager},
     log::log_manager::LogManager,
-    util::{current_time_millis, waiting_too_long, Result, MAX_WAIT_TIME_MILLIS},
+    util::{current_time_millis, waiting_too_long, CondMutex, Result, MAX_WAIT_TIME_MILLIS},
 };
 
 use super::buffer::Buffer;
 
 pub struct BufferManager {
-    m: Mutex<()>,
-    cond: Condvar,
+    m: CondMutex<()>,
     buffer_pool: Vec<Buffer>,
     num_available: i32,
     unpinned_positions: BTreeSet<i32>,
@@ -30,8 +28,7 @@ impl BufferManager {
             buffer_pool.push(Buffer::new(fm.clone(), lm.clone()));
         }
         BufferManager {
-            m: Mutex::new(()),
-            cond: Condvar::new(),
+            m: CondMutex::new(()),
             buffer_pool,
             num_available: num_buffers,
             unpinned_positions: (0..num_buffers).collect(),
@@ -48,14 +45,14 @@ impl BufferManager {
     }
 
     pub fn available(&self) -> i32 {
-        let _lock = self.m.lock().unwrap();
+        let _lock = self.m.lock();
         self.num_available
     }
 
     pub fn flush_all(&mut self, tx_num: i32) -> Result<()> {
-        let _lock = self.m.lock().unwrap();
+        let _lock = self.m.lock();
         for buffer in self.buffer_pool.iter_mut() {
-            if buffer.modifying_tx() == tx_num {
+            if buffer.modifying_tx() == tx_num || (tx_num == -1 && buffer.modifying_tx() != -1) {
                 buffer.flush()?;
             }
         }
@@ -63,18 +60,18 @@ impl BufferManager {
     }
 
     pub fn unpin(&mut self, buf_idx: i32) {
-        let _lock = self.m.lock().unwrap();
+        let _lock = self.m.lock();
         let buffer = &mut self.buffer_pool[buf_idx as usize];
         buffer.unpin();
         if !buffer.is_pinned() {
             self.num_available += 1;
             self.unpinned_positions.insert(buf_idx);
-            self.cond.notify_all();
+            self.m.notify_all();
         }
     }
 
     pub fn pin(&mut self, block: &BlockId) -> Result<i32> {
-        let mut lock = self.m.lock().unwrap();
+        let mut lock = self.m.lock();
         let start_time = current_time_millis();
         let buffer_pool_ptr = &mut self.buffer_pool as *mut Vec<Buffer>;
         loop {
@@ -90,11 +87,7 @@ impl BufferManager {
                 return buffer.ok_or("no available buffer".into());
             }
 
-            lock = self
-                .cond
-                .wait_timeout(lock, Duration::from_millis(MAX_WAIT_TIME_MILLIS as u64))
-                .unwrap()
-                .0;
+            lock = self.m.wait_timeout(lock, MAX_WAIT_TIME_MILLIS as u64);
         }
     }
 
@@ -172,7 +165,7 @@ mod tests {
             let buf = bm.pin(&BlockId::new("testfile".to_string(), i)).unwrap();
             assert_eq!(buf, i);
             assert_eq!(bm.available(), 2 - i);
-            buffers.push(buf as i32);
+            buffers.push(buf);
         }
 
         // free
@@ -185,7 +178,7 @@ mod tests {
             let buf = bm.pin(&BlockId::new("testfile".to_string(), i)).unwrap();
             assert_eq!(buf, i);
             assert_eq!(bm.available(), 1 - i);
-            buffers.push(buf as i32);
+            buffers.push(buf);
         }
 
         // buffer is full
@@ -201,7 +194,7 @@ mod tests {
         let buf = bm.pin(&BlockId::new("testfile".to_string(), 3)).unwrap();
         assert_eq!(buf, 2);
         assert_eq!(bm.available(), 0);
-        buffers.push(buf as i32);
+        buffers.push(buf);
 
         // delete testfile
         std::fs::remove_file("testdata/buffer/buffer_manager/pin_and_unpin/testfile").unwrap();

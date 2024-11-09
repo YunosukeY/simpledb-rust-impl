@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 
-use std::{sync::Arc, vec};
+use std::{collections::HashSet, sync::Arc, vec};
 
 use crate::{
     buffer::{buffer::Buffer, buffer_manager::BufferManager},
+    file::page::Page,
     log::log_manager::LogManager,
     tx::{
         recovery::{
@@ -18,7 +19,8 @@ use crate::{
 use super::{
     checkpoint_record::CheckpointRecord,
     commit_record::CommitRecord,
-    log_record::{create_log_record, CHECKPOINT, COMMIT, ROLLBACK, START},
+    log_record::{create_log_record, CHECKPOINT, COMMIT, NQCKPT, ROLLBACK, START},
+    nq_ckpt_record::NqCkptRecord,
     rollback_record::RollbackRecord,
     set_bytes_record::SetBytesRecord,
     set_date_record::SetDateRecord,
@@ -191,10 +193,19 @@ impl RecoveryManager {
     fn do_recover(&mut self, tx: &mut Transaction) {
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         let mut finished_txs = vec![];
+        let mut unfinished_txs: Option<HashSet<i32>> = None;
         for bytes in unsafe { (*lm).iter().unwrap() } {
-            let rec = create_log_record(bytes).unwrap();
+            let rec = create_log_record(bytes.clone()).unwrap();
             if rec.op() == CHECKPOINT {
                 return;
+            } else if rec.op() == NQCKPT && unfinished_txs.is_none() {
+                let rec = NqCkptRecord::from(Page::from(bytes));
+                unfinished_txs = Some(rec.tx_nums());
+            } else if rec.op() == START && unfinished_txs.is_some() {
+                unfinished_txs.as_mut().unwrap().remove(&rec.tx_num());
+                if unfinished_txs.as_ref().unwrap().is_empty() {
+                    return;
+                }
             } else if rec.op() == COMMIT || rec.op() == ROLLBACK {
                 finished_txs.push(rec.tx_num());
             } else if !finished_txs.contains(&rec.tx_num()) {

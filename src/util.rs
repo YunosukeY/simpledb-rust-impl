@@ -1,5 +1,10 @@
 #![allow(dead_code)]
 
+use std::{
+    collections::HashMap,
+    sync::{Condvar, Mutex},
+};
+
 use tracing::Level;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -33,4 +38,60 @@ pub fn init_log() {
         .with_thread_ids(true)
         .with_thread_names(true)
         .init();
+}
+
+pub struct CondMutex<T> {
+    m: Mutex<T>,
+    cond: Condvar,
+}
+
+impl<T> CondMutex<T> {
+    pub fn new(data: T) -> Self {
+        Self {
+            m: Mutex::new(data),
+            cond: Condvar::new(),
+        }
+    }
+
+    pub fn lock(&self) -> std::sync::MutexGuard<T> {
+        self.m.lock().unwrap()
+    }
+
+    pub fn wait_timeout<'a>(
+        &self,
+        guard: std::sync::MutexGuard<'a, T>,
+        millis: u64,
+    ) -> std::sync::MutexGuard<'a, T> {
+        let (guard, _) = self
+            .cond
+            .wait_timeout(guard, std::time::Duration::from_millis(millis))
+            .unwrap();
+        guard
+    }
+
+    pub fn notify_all(&self) {
+        self.cond.notify_all();
+    }
+}
+
+pub struct ConcurrentHashMap<K, V> {
+    m: Mutex<()>,
+    map: HashMap<K, V>,
+}
+
+impl<K: Eq + std::hash::Hash + Clone, V> ConcurrentHashMap<K, V> {
+    pub fn new() -> Self {
+        Self {
+            m: Mutex::new(()),
+            map: HashMap::new(),
+        }
+    }
+
+    pub fn get_or_insert(&mut self, key: &K, value: V) -> &V {
+        let _lock = self.m.lock().unwrap();
+        if !self.map.contains_key(key) {
+            self.map.insert(key.clone(), value);
+        }
+        self.map.get(key).unwrap()
+    }
 }

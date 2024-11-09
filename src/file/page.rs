@@ -254,11 +254,11 @@ mod tests {
         let mut p = Page::new(8);
 
         let values = [
-            std::f64::MAX,
-            std::f64::MIN,
-            std::f64::MIN_POSITIVE,
-            std::f64::INFINITY,
-            std::f64::NEG_INFINITY,
+            f64::MAX,
+            f64::MIN,
+            f64::MIN_POSITIVE,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
             0.0,
             -0.0,
         ];
@@ -268,7 +268,7 @@ mod tests {
             assert_eq!(p.get_double(0), value, "value: {}", value);
         }
 
-        p.set_double(0, std::f64::NAN);
+        p.set_double(0, f64::NAN);
         assert!(p.get_double(0).is_nan());
     }
 
