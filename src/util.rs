@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::sync::{Condvar, Mutex};
+
 use tracing::Level;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -33,4 +35,38 @@ pub fn init_log() {
         .with_thread_ids(true)
         .with_thread_names(true)
         .init();
+}
+
+pub struct CondMutex<T> {
+    m: Mutex<T>,
+    cond: Condvar,
+}
+
+impl<T> CondMutex<T> {
+    pub fn new(data: T) -> Self {
+        Self {
+            m: Mutex::new(data),
+            cond: Condvar::new(),
+        }
+    }
+
+    pub fn lock(&self) -> std::sync::MutexGuard<T> {
+        self.m.lock().unwrap()
+    }
+
+    pub fn wait_timeout<'a>(
+        &self,
+        guard: std::sync::MutexGuard<'a, T>,
+        millis: u64,
+    ) -> std::sync::MutexGuard<'a, T> {
+        let (guard, _) = self
+            .cond
+            .wait_timeout(guard, std::time::Duration::from_millis(millis))
+            .unwrap();
+        guard
+    }
+
+    pub fn notify_all(&self) {
+        self.cond.notify_all();
+    }
 }
