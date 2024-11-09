@@ -52,7 +52,7 @@ impl BufferManager {
     pub fn flush_all(&mut self, tx_num: i32) -> Result<()> {
         let _lock = self.m.lock();
         for buffer in self.buffer_pool.iter_mut() {
-            if buffer.modifying_tx() == tx_num {
+            if buffer.modifying_tx() == tx_num || (tx_num == -1 && buffer.modifying_tx() != -1) {
                 buffer.flush()?;
             }
         }

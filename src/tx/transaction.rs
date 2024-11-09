@@ -1,7 +1,11 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex, RwLock, RwLockReadGuard},
+    thread,
+    time::Duration,
+};
 
 use tracing::info;
 
@@ -9,36 +13,44 @@ use crate::{
     buffer::buffer_manager::BufferManager,
     file::{block_id::BlockId, file_manager::FileManager},
     log::log_manager::LogManager,
-    util::Result,
+    util::{current_time_millis, waiting_too_long, Result},
 };
 
 use super::{
     buffer_list::BufferList,
     concurrency::{concurrency_manager::ConcurrencyManager, lock_table::LockTable},
-    recovery::recovery_manager::RecoveryManager,
+    recovery::{checkpoint_record::CheckpointRecord, recovery_manager::RecoveryManager},
 };
 
 static NEXT_TX_NUM: Mutex<i32> = Mutex::new(0);
+static CHECKPOINT_LOCK: Mutex<()> = Mutex::new(());
+static TRANSACTION_LOCK: RwLock<()> = RwLock::new(());
 const END_OF_FILE: i32 = -1;
 
-pub struct Transaction {
+pub struct Transaction<'a> {
     rm: RecoveryManager,
     cm: ConcurrencyManager,
     bm: Arc<BufferManager>,
     fm: Arc<FileManager>,
     tx_num: i32,
     my_buffers: BufferList,
+    tx_lock: RwLockReadGuard<'a, ()>,
 }
 
-impl Transaction {
+impl<'a> Transaction<'a> {
     pub fn new(
         fm: Arc<FileManager>,
         lm: Arc<LogManager>,
-        bm: BufferManager,
+        bm: Arc<BufferManager>,
         lock_table: Arc<LockTable>,
     ) -> Self {
+        let tx_lock = {
+            // Wait if a checkpoint is in progress.
+            let _cp_lock = CHECKPOINT_LOCK.lock().unwrap();
+            // Mark that some transactions are in progress.
+            TRANSACTION_LOCK.read().unwrap()
+        };
         let tx_num = Self::next_tx_number();
-        let bm = Arc::new(bm);
         let rm = RecoveryManager::new(tx_num, lm, bm.clone());
         let cm = ConcurrencyManager::new(lock_table);
         let my_buffers = BufferList::new(bm.clone());
@@ -49,6 +61,7 @@ impl Transaction {
             fm,
             tx_num,
             my_buffers,
+            tx_lock,
         }
     }
 
@@ -57,6 +70,39 @@ impl Transaction {
         info!(self.tx_num, "transaction committed");
         self.cm.release();
         self.my_buffers.unpin_all();
+        Ok(())
+    }
+
+    pub fn checkpoint(bm: Arc<BufferManager>, lm: Arc<LogManager>) -> Result<()> {
+        // Stop accepting new transactions.
+        let _cp_lock = CHECKPOINT_LOCK.lock().unwrap();
+
+        // Wait for existing transactions to finish.
+        let start_time = current_time_millis();
+        loop {
+            let tx_lock = TRANSACTION_LOCK.try_write();
+            if tx_lock.is_ok() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+            if waiting_too_long(start_time) {
+                return Err("checkpoint timeout".into());
+            }
+        }
+
+        // Flush all modified buffers.
+        let bm = Arc::as_ptr(&bm) as *mut BufferManager;
+        unsafe {
+            (*bm).flush_all(-1)?;
+        }
+
+        // Append a quiescent checkpoint record to the log and flush it to disk.
+        let lm = Arc::as_ptr(&lm) as *mut LogManager;
+        unsafe {
+            let lsn = CheckpointRecord::new().write_to_log(&mut *lm)?;
+            (*lm).flush(lsn)?;
+        }
+
         Ok(())
     }
 
@@ -333,7 +379,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -350,7 +396,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -369,7 +415,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -393,7 +439,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -410,7 +456,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -429,7 +475,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -453,7 +499,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -470,7 +516,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -489,7 +535,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -513,7 +559,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -530,7 +576,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -549,7 +595,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -573,7 +619,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -590,7 +636,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -609,7 +655,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -633,7 +679,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -659,7 +705,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -684,7 +730,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -717,7 +763,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -743,7 +789,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -771,7 +817,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -804,7 +850,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
             let now = chrono::Utc::now().fixed_offset();
@@ -822,7 +868,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
             let now = chrono::Utc::now().fixed_offset();
@@ -842,7 +888,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
             let now = chrono::Utc::now().fixed_offset();
@@ -867,7 +913,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -888,7 +934,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -908,7 +954,7 @@ mod tests {
                 400,
             ));
             let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-            let bm = BufferManager::new(fm.clone(), lm.clone(), 8);
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm, Arc::new(LockTable::new()));
             let block = BlockId::new("tempfile".to_string(), 0);
 
@@ -923,6 +969,78 @@ mod tests {
                 tx.get_json(&block, 0).unwrap().unwrap(),
                 serde_json::json!({"key": "value"})
             );
+        }
+    }
+
+    mod checkpoint {
+
+        use crate::tx::concurrency::lock_table;
+
+        use super::*;
+
+        #[test]
+        fn error_if_blocked() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/checkpoint/error_if_blocked"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(lock_table::LockTable::new());
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            let res = Transaction::checkpoint(bm.clone(), lm.clone());
+
+            assert!(res.is_err());
+        }
+
+        #[test]
+        fn ok_if_not_blocked() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/checkpoint/ok_if_not_blocked"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(lock_table::LockTable::new());
+
+            let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            let t = thread::spawn(move || {
+                let res = Transaction::checkpoint(bm.clone(), lm.clone());
+                assert!(res.is_ok());
+            });
+            drop(tx);
+            t.join().unwrap();
+        }
+
+        #[test]
+        fn new_tx_is_kept_waiting() {
+            let fm = Arc::new(FileManager::new(
+                PathBuf::from("testdata/tx/transaction/checkpoint/new_tx_is_kept_waiting"),
+                400,
+            ));
+            let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
+            let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
+            let lock_table = Arc::new(lock_table::LockTable::new());
+
+            let tx1 = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            let t1 = {
+                let bm = bm.clone();
+                let lm = lm.clone();
+                thread::spawn(move || {
+                    let res = Transaction::checkpoint(bm, lm);
+                    assert!(res.is_ok());
+                })
+            };
+            let t2 = thread::spawn(move || {
+                let tx2 = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
+            });
+            assert!(!t2.is_finished()); // starting new tx is blocked until checkpoint is finished
+
+            drop(tx1);
+            t1.join().unwrap();
+            thread::sleep(std::time::Duration::from_millis(100)); // HACK
+            assert!(t2.is_finished());
         }
     }
 }
