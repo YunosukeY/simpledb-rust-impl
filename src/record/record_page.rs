@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::{
     file::block_id::BlockId,
-    sql_types::{INTEGER, VARCHAR},
+    sql::ColumnType::{Integer, Varchar},
     tx::transaction::Transaction,
 };
 
@@ -70,13 +70,12 @@ impl<'a> RecordPage<'a> {
             let schema = self.layout.schema();
             for field_name in schema.fields() {
                 let field_pos = self.field_pos(slot, field_name);
-                let r#type = schema.type_of(field_name).unwrap();
-                match r#type {
-                    INTEGER => unsafe { (*tx).set_int(&self.block, field_pos, 0, false).unwrap() },
-                    VARCHAR => unsafe {
+                let column_type = schema.column_type(field_name).unwrap();
+                match column_type {
+                    Integer => unsafe { (*tx).set_int(&self.block, field_pos, 0, false).unwrap() },
+                    Varchar => unsafe {
                         (*tx).set_string(&self.block, field_pos, "", false).unwrap()
                     },
-                    _ => panic!("Unknown type"),
                 };
                 slot += 1;
             }

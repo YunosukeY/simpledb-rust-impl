@@ -3,7 +3,7 @@ mod file;
 mod log;
 mod query;
 mod record;
-mod sql_types;
+mod sql;
 mod tx;
 mod util;
 

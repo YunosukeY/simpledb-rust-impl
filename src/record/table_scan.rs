@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::{
     file::block_id::BlockId,
     query::{constant::Constant, scan::Scan, update_scan::UpdateScan},
-    sql_types::{INTEGER, VARCHAR},
+    sql::ColumnType::{Integer, Varchar},
     tx::transaction::Transaction,
 };
 
@@ -71,10 +71,9 @@ impl<'a> Scan for TableScan<'a> {
 
     fn get_value(&mut self, field_name: &str) -> Constant {
         let layout = Arc::as_ptr(&self.layout);
-        match unsafe { (*layout).schema().type_of(field_name).unwrap() } {
-            INTEGER => Constant::from(self.get_int(field_name)),
-            VARCHAR => Constant::from(self.get_string(field_name)),
-            _ => panic!("Unknown type"),
+        match unsafe { (*layout).schema().column_type(field_name).unwrap() } {
+            Integer => Constant::from(self.get_int(field_name)),
+            Varchar => Constant::from(self.get_string(field_name)),
         }
     }
 
@@ -94,10 +93,9 @@ impl<'a> Scan for TableScan<'a> {
 impl<'a> UpdateScan for TableScan<'a> {
     fn set_value(&mut self, field_name: &str, value: Constant) {
         let layout = Arc::as_ptr(&self.layout);
-        match unsafe { (*layout).schema().type_of(field_name).unwrap() } {
-            INTEGER => self.set_int(field_name, value.as_int().unwrap()),
-            VARCHAR => self.set_string(field_name, value.as_string().unwrap()),
-            _ => panic!("Unknown type"),
+        match unsafe { (*layout).schema().column_type(field_name).unwrap() } {
+            Integer => self.set_int(field_name, value.as_int().unwrap()),
+            Varchar => self.set_string(field_name, value.as_string().unwrap()),
         }
     }
 

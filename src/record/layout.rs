@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::{
     file::page::Page,
-    sql_types::{INTEGER, VARCHAR},
+    sql::ColumnType::{Integer, Varchar},
     util::INTEGER_BYTES,
 };
 
@@ -38,11 +38,10 @@ impl Layout {
     }
 
     fn length_in_bytes(&self, field_name: &str) -> i32 {
-        let r#type = self.schema.type_of(field_name).unwrap();
-        match r#type {
-            INTEGER => INTEGER_BYTES,
-            VARCHAR => Page::max_len(self.schema.length(field_name).unwrap()),
-            _ => panic!("Unknown type"),
+        let column_type = self.schema.column_type(field_name).unwrap();
+        match column_type {
+            Integer => INTEGER_BYTES,
+            Varchar => Page::max_len(self.schema.length(field_name).unwrap()),
         }
     }
 }
