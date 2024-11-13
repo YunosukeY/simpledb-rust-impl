@@ -10,8 +10,8 @@ use crate::{
 
 use super::layout::Layout;
 
-const EMPTY: i32 = 0;
-const USED: i32 = 1;
+const EMPTY: bool = false;
+const USED: bool = true;
 
 pub struct RecordPage<'a> {
     tx: Arc<Transaction<'a>>,
@@ -64,7 +64,7 @@ impl<'a> RecordPage<'a> {
             let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
             unsafe {
                 (*tx)
-                    .set_int(&self.block, self.offset(slot), EMPTY, false)
+                    .set_bool(&self.block, self.offset(slot), EMPTY, false)
                     .unwrap();
             }
             let schema = self.layout.schema();
@@ -103,20 +103,20 @@ impl<'a> RecordPage<'a> {
         self.offset(slot) + self.layout.offset(field_name)
     }
 
-    fn set_flag(&mut self, slot: i32, flag: i32) {
+    fn set_flag(&mut self, slot: i32, flag: bool) {
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
         unsafe {
             (*tx)
-                .set_int(&self.block, self.offset(slot), flag, true)
+                .set_bool(&self.block, self.offset(slot), flag, true)
                 .unwrap();
         }
     }
 
-    fn search_after(&mut self, slot: i32, flag: i32) -> i32 {
+    fn search_after(&mut self, slot: i32, flag: bool) -> i32 {
         let mut next_slot = slot + 1;
         while self.is_valid_slot(next_slot) {
             let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-            if unsafe { (*tx).get_int(&self.block, self.offset(next_slot)).unwrap() == flag } {
+            if unsafe { (*tx).get_bool(&self.block, self.offset(next_slot)).unwrap() == flag } {
                 return next_slot;
             }
             next_slot += 1;
