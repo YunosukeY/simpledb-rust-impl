@@ -189,6 +189,10 @@ impl Page {
         let s = json.clone().map_or("".to_string(), |j| j.to_string());
         self.set_string(offset, &s);
     }
+
+    pub fn max_len(len: i32) -> i32 {
+        len * 4
+    }
 }
 
 impl From<Vec<u8>> for Page {

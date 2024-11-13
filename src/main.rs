@@ -1,6 +1,9 @@
 mod buffer;
 mod file;
 mod log;
+mod query;
+mod record;
+mod sql_types;
 mod tx;
 mod util;
 
