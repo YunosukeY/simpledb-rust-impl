@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::record::rid::RID;
+use crate::record::rid::Rid;
 
 use super::{constant::Constant, scan::Scan};
 
@@ -15,7 +15,7 @@ pub trait UpdateScan: Scan {
 
     fn delete(&mut self);
 
-    fn get_rid(&self) -> RID;
+    fn get_rid(&self) -> Rid;
 
-    fn move_to_rid(&mut self, rid: RID);
+    fn move_to_rid(&mut self, rid: Rid);
 }
