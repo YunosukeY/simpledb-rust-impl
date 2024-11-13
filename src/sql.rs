@@ -1,5 +1,12 @@
 #[derive(Clone)]
 pub enum ColumnType {
     Integer,
-    Varchar,
+    Double,
+    VarBit,
+    VarChar,
+    Boolean,
+    Date,
+    Time,
+    DateTime,
+    Json,
 }

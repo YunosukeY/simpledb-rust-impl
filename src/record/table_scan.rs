@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::{
     file::block_id::BlockId,
     query::{constant::Constant, scan::Scan, update_scan::UpdateScan},
-    sql::ColumnType::{Integer, Varchar},
+    sql::ColumnType,
     tx::transaction::Transaction,
 };
 
@@ -62,6 +62,20 @@ impl<'a> Scan for TableScan<'a> {
             .get_int(self.current_slot, field_name)
     }
 
+    fn get_double(&mut self, field_name: &str) -> f64 {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .get_double(self.current_slot, field_name)
+    }
+
+    fn get_bytes(&mut self, field_name: &str) -> Vec<u8> {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .get_bytes(self.current_slot, field_name)
+    }
+
     fn get_string(&mut self, field_name: &str) -> String {
         self.rp
             .as_mut()
@@ -69,11 +83,53 @@ impl<'a> Scan for TableScan<'a> {
             .get_string(self.current_slot, field_name)
     }
 
+    fn get_boolean(&mut self, field_name: &str) -> bool {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .get_bool(self.current_slot, field_name)
+    }
+
+    fn get_date(&mut self, field_name: &str) -> chrono::NaiveDate {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .get_date(self.current_slot, field_name)
+    }
+
+    fn get_time(&mut self, field_name: &str) -> chrono::NaiveTime {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .get_time(self.current_slot, field_name)
+    }
+
+    fn get_datetime(&mut self, field_name: &str) -> chrono::DateTime<chrono::FixedOffset> {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .get_datetime(self.current_slot, field_name)
+    }
+
+    fn get_json(&mut self, field_name: &str) -> serde_json::Value {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .get_json(self.current_slot, field_name)
+    }
+
     fn get_value(&mut self, field_name: &str) -> Constant {
         let layout = Arc::as_ptr(&self.layout);
         match unsafe { (*layout).schema().column_type(field_name).unwrap() } {
-            Integer => Constant::from(self.get_int(field_name)),
-            Varchar => Constant::from(self.get_string(field_name)),
+            ColumnType::Integer => Constant::from(self.get_int(field_name)),
+            ColumnType::Double => Constant::from(self.get_double(field_name)),
+            ColumnType::VarBit => Constant::from(self.get_bytes(field_name)),
+            ColumnType::VarChar => Constant::from(self.get_string(field_name)),
+            ColumnType::Boolean => Constant::from(self.get_boolean(field_name)),
+            ColumnType::Date => Constant::from(self.get_date(field_name)),
+            ColumnType::Time => Constant::from(self.get_time(field_name)),
+            ColumnType::DateTime => Constant::from(self.get_datetime(field_name)),
+            ColumnType::Json => Constant::from(self.get_json(field_name)),
         }
     }
 
@@ -94,8 +150,15 @@ impl<'a> UpdateScan for TableScan<'a> {
     fn set_value(&mut self, field_name: &str, value: Constant) {
         let layout = Arc::as_ptr(&self.layout);
         match unsafe { (*layout).schema().column_type(field_name).unwrap() } {
-            Integer => self.set_int(field_name, value.as_int().unwrap()),
-            Varchar => self.set_string(field_name, value.as_string().unwrap()),
+            ColumnType::Integer => self.set_int(field_name, value.as_int().unwrap()),
+            ColumnType::Double => self.set_double(field_name, value.as_double().unwrap()),
+            ColumnType::VarBit => self.set_bytes(field_name, value.as_bytes().unwrap()),
+            ColumnType::VarChar => self.set_string(field_name, value.as_string().unwrap()),
+            ColumnType::Boolean => self.set_boolean(field_name, value.as_boolean().unwrap()),
+            ColumnType::Date => self.set_date(field_name, value.as_date().unwrap()),
+            ColumnType::Time => self.set_time(field_name, value.as_time().unwrap()),
+            ColumnType::DateTime => self.set_datetime(field_name, value.as_datetime().unwrap()),
+            ColumnType::Json => self.set_json(field_name, value.as_json().unwrap()),
         }
     }
 
@@ -106,11 +169,60 @@ impl<'a> UpdateScan for TableScan<'a> {
             .set_int(self.current_slot, field_name, value);
     }
 
+    fn set_double(&mut self, field_name: &str, value: f64) {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .set_double(self.current_slot, field_name, value);
+    }
+
+    fn set_bytes(&mut self, field_name: &str, value: &[u8]) {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .set_bytes(self.current_slot, field_name, value);
+    }
+
     fn set_string(&mut self, field_name: &str, value: &str) {
         self.rp
             .as_mut()
             .unwrap()
             .set_string(self.current_slot, field_name, value);
+    }
+
+    fn set_boolean(&mut self, field_name: &str, value: bool) {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .set_bool(self.current_slot, field_name, value);
+    }
+
+    fn set_date(&mut self, field_name: &str, value: chrono::NaiveDate) {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .set_date(self.current_slot, field_name, value);
+    }
+
+    fn set_time(&mut self, field_name: &str, value: chrono::NaiveTime) {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .set_time(self.current_slot, field_name, value);
+    }
+
+    fn set_datetime(&mut self, field_name: &str, value: chrono::DateTime<chrono::FixedOffset>) {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .set_datetime(self.current_slot, field_name, value);
+    }
+
+    fn set_json(&mut self, field_name: &str, value: &serde_json::Value) {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .set_json(self.current_slot, field_name, value);
     }
 
     fn insert(&mut self) {

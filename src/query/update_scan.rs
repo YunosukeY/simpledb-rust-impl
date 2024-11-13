@@ -9,7 +9,21 @@ pub trait UpdateScan: Scan {
 
     fn set_int(&mut self, field_name: &str, value: i32);
 
+    fn set_double(&mut self, field_name: &str, value: f64);
+
+    fn set_bytes(&mut self, field_name: &str, value: &[u8]);
+
     fn set_string(&mut self, field_name: &str, value: &str);
+
+    fn set_boolean(&mut self, field_name: &str, value: bool);
+
+    fn set_date(&mut self, field_name: &str, value: chrono::NaiveDate);
+
+    fn set_time(&mut self, field_name: &str, value: chrono::NaiveTime);
+
+    fn set_datetime(&mut self, field_name: &str, value: chrono::DateTime<chrono::FixedOffset>);
+
+    fn set_json(&mut self, field_name: &str, value: &serde_json::Value);
 
     fn insert(&mut self);
 

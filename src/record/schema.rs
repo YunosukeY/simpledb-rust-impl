@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 
-use crate::sql::ColumnType::{Integer, Varchar};
 use crate::{sql::ColumnType, util::Result};
 
 #[derive(Clone)]
@@ -41,11 +40,39 @@ impl Schema {
     }
 
     pub fn add_int_field(&mut self, fieldname: &str) {
-        self.add_field(fieldname, Integer, 0);
+        self.add_field(fieldname, ColumnType::Integer, 0);
+    }
+
+    pub fn add_double_field(&mut self, fieldname: &str) {
+        self.add_field(fieldname, ColumnType::Double, 0);
+    }
+
+    pub fn add_bytes_field(&mut self, fieldname: &str, length: i32) {
+        self.add_field(fieldname, ColumnType::VarBit, length);
     }
 
     pub fn add_string_field(&mut self, fieldname: &str, length: i32) {
-        self.add_field(fieldname, Varchar, length);
+        self.add_field(fieldname, ColumnType::VarChar, length);
+    }
+
+    pub fn add_boolean_field(&mut self, fieldname: &str) {
+        self.add_field(fieldname, ColumnType::Boolean, 0);
+    }
+
+    pub fn add_date_field(&mut self, fieldname: &str) {
+        self.add_field(fieldname, ColumnType::Date, 0);
+    }
+
+    pub fn add_time_field(&mut self, fieldname: &str) {
+        self.add_field(fieldname, ColumnType::Time, 0);
+    }
+
+    pub fn add_datetime_field(&mut self, fieldname: &str) {
+        self.add_field(fieldname, ColumnType::DateTime, 0);
+    }
+
+    pub fn add_json_field(&mut self, fieldname: &str, length: i32) {
+        self.add_field(fieldname, ColumnType::Json, length);
     }
 
     pub fn add(&mut self, fieldname: &str, sch: Schema) -> Result<()> {

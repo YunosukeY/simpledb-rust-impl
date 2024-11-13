@@ -184,7 +184,7 @@ impl<'a> Transaction<'a> {
         Ok(())
     }
 
-    pub fn get_bytes(&mut self, block: &BlockId, offset: i32) -> Result<&[u8]> {
+    pub fn get_bytes(&mut self, block: &BlockId, offset: i32) -> Result<Vec<u8>> {
         self.cm.s_lock(block)?;
         let buffer = self.my_buffers.buffer(block);
         Ok(buffer.contents.get_bytes(offset))

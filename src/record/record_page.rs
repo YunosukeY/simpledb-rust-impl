@@ -2,11 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::{
-    file::block_id::BlockId,
-    sql::ColumnType::{Integer, Varchar},
-    tx::transaction::Transaction,
-};
+use crate::{file::block_id::BlockId, sql::ColumnType, tx::transaction::Transaction};
 
 use super::layout::Layout;
 
@@ -29,7 +25,6 @@ impl<'a> RecordPage<'a> {
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
         unsafe { (*tx).get_int(&self.block, field_pos).unwrap() }
     }
-
     pub fn set_int(&mut self, slot: i32, field_name: &str, value: i32) {
         let field_pos = self.field_pos(slot, field_name);
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
@@ -38,18 +33,129 @@ impl<'a> RecordPage<'a> {
         }
     }
 
+    pub fn get_double(&mut self, slot: i32, field_name: &str) -> f64 {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe { (*tx).get_double(&self.block, field_pos).unwrap() }
+    }
+    pub fn set_double(&mut self, slot: i32, field_name: &str, value: f64) {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe {
+            (*tx)
+                .set_double(&self.block, field_pos, value, true)
+                .unwrap();
+        }
+    }
+
+    pub fn get_bytes(&mut self, slot: i32, field_name: &str) -> Vec<u8> {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe { (*tx).get_bytes(&self.block, field_pos).unwrap() }
+    }
+    pub fn set_bytes(&mut self, slot: i32, field_name: &str, value: &[u8]) {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe {
+            (*tx)
+                .set_bytes(&self.block, field_pos, value, true)
+                .unwrap();
+        }
+    }
+
     pub fn get_string(&mut self, slot: i32, field_name: &str) -> String {
         let field_pos = self.field_pos(slot, field_name);
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
         unsafe { (*tx).get_string(&self.block, field_pos).unwrap() }
     }
-
     pub fn set_string(&mut self, slot: i32, field_name: &str, value: &str) {
         let field_pos = self.field_pos(slot, field_name);
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
         unsafe {
             (*tx)
                 .set_string(&self.block, field_pos, value, true)
+                .unwrap();
+        }
+    }
+
+    pub fn get_bool(&mut self, slot: i32, field_name: &str) -> bool {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe { (*tx).get_bool(&self.block, field_pos).unwrap() }
+    }
+    pub fn set_bool(&mut self, slot: i32, field_name: &str, value: bool) {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe {
+            (*tx).set_bool(&self.block, field_pos, value, true).unwrap();
+        }
+    }
+
+    pub fn get_date(&mut self, slot: i32, field_name: &str) -> chrono::NaiveDate {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe { (*tx).get_date(&self.block, field_pos).unwrap().unwrap() }
+    }
+    pub fn set_date(&mut self, slot: i32, field_name: &str, value: chrono::NaiveDate) {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe {
+            (*tx)
+                .set_date(&self.block, field_pos, &Some(value), true)
+                .unwrap();
+        }
+    }
+
+    pub fn get_time(&mut self, slot: i32, field_name: &str) -> chrono::NaiveTime {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe { (*tx).get_time(&self.block, field_pos).unwrap().unwrap() }
+    }
+    pub fn set_time(&mut self, slot: i32, field_name: &str, value: chrono::NaiveTime) {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe {
+            (*tx)
+                .set_time(&self.block, field_pos, &Some(value), true)
+                .unwrap();
+        }
+    }
+
+    pub fn get_datetime(
+        &mut self,
+        slot: i32,
+        field_name: &str,
+    ) -> chrono::DateTime<chrono::FixedOffset> {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe { (*tx).get_datetime(&self.block, field_pos).unwrap().unwrap() }
+    }
+    pub fn set_datetime(
+        &mut self,
+        slot: i32,
+        field_name: &str,
+        value: chrono::DateTime<chrono::FixedOffset>,
+    ) {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe {
+            (*tx)
+                .set_datetime(&self.block, field_pos, &Some(value), true)
+                .unwrap();
+        }
+    }
+
+    pub fn get_json(&mut self, slot: i32, field_name: &str) -> serde_json::Value {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe { (*tx).get_json(&self.block, field_pos).unwrap().unwrap() }
+    }
+    pub fn set_json(&mut self, slot: i32, field_name: &str, value: &serde_json::Value) {
+        let field_pos = self.field_pos(slot, field_name);
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        unsafe {
+            (*tx)
+                .set_json(&self.block, field_pos, &Some(value.clone()), true)
                 .unwrap();
         }
     }
@@ -72,9 +178,44 @@ impl<'a> RecordPage<'a> {
                 let field_pos = self.field_pos(slot, field_name);
                 let column_type = schema.column_type(field_name).unwrap();
                 match column_type {
-                    Integer => unsafe { (*tx).set_int(&self.block, field_pos, 0, false).unwrap() },
-                    Varchar => unsafe {
+                    ColumnType::Integer => unsafe {
+                        (*tx).set_int(&self.block, field_pos, 0, false).unwrap()
+                    },
+                    ColumnType::Double => unsafe {
+                        (*tx)
+                            .set_double(&self.block, field_pos, 0.0, false)
+                            .unwrap()
+                    },
+                    ColumnType::VarBit => unsafe {
+                        (*tx).set_bytes(&self.block, field_pos, &[], false).unwrap()
+                    },
+                    ColumnType::VarChar => unsafe {
                         (*tx).set_string(&self.block, field_pos, "", false).unwrap()
+                    },
+                    ColumnType::Boolean => unsafe {
+                        (*tx)
+                            .set_bool(&self.block, field_pos, false, false)
+                            .unwrap()
+                    },
+                    ColumnType::Date => unsafe {
+                        (*tx)
+                            .set_date(&self.block, field_pos, &None, false)
+                            .unwrap()
+                    },
+                    ColumnType::Time => unsafe {
+                        (*tx)
+                            .set_time(&self.block, field_pos, &None, false)
+                            .unwrap()
+                    },
+                    ColumnType::DateTime => unsafe {
+                        (*tx)
+                            .set_datetime(&self.block, field_pos, &None, false)
+                            .unwrap()
+                    },
+                    ColumnType::Json => unsafe {
+                        (*tx)
+                            .set_json(&self.block, field_pos, &None, false)
+                            .unwrap()
                     },
                 };
                 slot += 1;

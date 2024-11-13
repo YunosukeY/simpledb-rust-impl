@@ -3,9 +3,9 @@
 use std::collections::HashMap;
 
 use crate::{
-    file::page::Page,
-    sql::ColumnType::{Integer, Varchar},
-    util::INTEGER_BYTES,
+    file::page::{Page, DATETIME_LEN, DATE_LEN, TIME_LEN},
+    sql::ColumnType,
+    util::{BOOL_BYTES, DOUBLE_BYTES, INTEGER_BYTES},
 };
 
 use super::schema::Schema;
@@ -40,8 +40,15 @@ impl Layout {
     fn length_in_bytes(&self, field_name: &str) -> i32 {
         let column_type = self.schema.column_type(field_name).unwrap();
         match column_type {
-            Integer => INTEGER_BYTES,
-            Varchar => Page::max_len(self.schema.length(field_name).unwrap()),
+            ColumnType::Integer => INTEGER_BYTES,
+            ColumnType::Double => DOUBLE_BYTES,
+            ColumnType::VarBit => Page::max_bytes_len(self.schema.length(field_name).unwrap()),
+            ColumnType::VarChar => Page::max_str_len(self.schema.length(field_name).unwrap()),
+            ColumnType::Boolean => BOOL_BYTES,
+            ColumnType::Date => DATE_LEN,
+            ColumnType::Time => TIME_LEN,
+            ColumnType::DateTime => DATETIME_LEN,
+            ColumnType::Json => Page::max_json_len(self.schema.length(field_name).unwrap()),
         }
     }
 }
