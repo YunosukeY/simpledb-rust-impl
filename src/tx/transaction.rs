@@ -343,16 +343,16 @@ impl<'a> Transaction<'a> {
         Ok(())
     }
 
-    pub fn get_json(&mut self, block: &BlockId, offset: i32) -> Result<Option<serde_json::Value>> {
+    pub fn get_json(&mut self, block: &BlockId, offset: i32) -> Result<serde_json::Value> {
         self.cm.s_lock(block)?;
         let buffer = self.my_buffers.buffer(block);
-        Ok(buffer.contents.get_json(offset))
+        buffer.contents.get_json(offset)
     }
     pub fn set_json(
         &mut self,
         block: &BlockId,
         offset: i32,
-        value: &Option<serde_json::Value>,
+        value: &serde_json::Value,
         log: bool,
     ) -> Result<()> {
         self.cm.x_lock(block)?;
@@ -1072,11 +1072,11 @@ mod tests {
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
+            tx.set_json(&block, 0, &serde_json::json!({"key": "value"}), true)
                 .unwrap();
 
             assert_eq!(
-                tx.get_json(&block, 0).unwrap().unwrap(),
+                tx.get_json(&block, 0).unwrap(),
                 serde_json::json!({"key": "value"})
             );
         }
@@ -1094,13 +1094,13 @@ mod tests {
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
+            tx.set_json(&block, 0, &serde_json::json!({"key": "value"}), true)
                 .unwrap();
             tx.commit().unwrap();
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value2"})), true)
+            tx.set_json(&block, 0, &serde_json::json!({"key": "value2"}), true)
                 .unwrap();
             tx.rollback();
 
@@ -1108,7 +1108,7 @@ mod tests {
             tx.pin(&block).unwrap();
             assert_eq!(
                 tx.get_json(&block, 0).unwrap(),
-                Some(serde_json::json!({"key": "value"}))
+                serde_json::json!({"key": "value"})
             );
         }
 
@@ -1125,13 +1125,13 @@ mod tests {
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value"})), true)
+            tx.set_json(&block, 0, &serde_json::json!({"key": "value"}), true)
                 .unwrap();
             tx.commit().unwrap();
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_json(&block, 0, &Some(serde_json::json!({"key": "value2"})), true)
+            tx.set_json(&block, 0, &serde_json::json!({"key": "value2"}), true)
                 .unwrap();
             tx.unpin(&block);
             tx.cm.release();
@@ -1142,7 +1142,7 @@ mod tests {
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
             assert_eq!(
-                tx.get_json(&block, 0).unwrap().unwrap(),
+                tx.get_json(&block, 0).unwrap(),
                 serde_json::json!({"key": "value"})
             );
         }

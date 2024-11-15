@@ -13,17 +13,12 @@ use super::log_record::{LogRecord, SET_JSON};
 pub struct SetJsonRecord {
     tx_num: i32,
     offset: i32,
-    old_value: Option<serde_json::Value>,
+    old_value: serde_json::Value,
     block: BlockId,
 }
 
 impl SetJsonRecord {
-    pub fn new(
-        tx_num: i32,
-        block: BlockId,
-        offset: i32,
-        old_value: &Option<serde_json::Value>,
-    ) -> Self {
+    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: &serde_json::Value) -> Self {
         Self {
             tx_num,
             offset,
@@ -38,8 +33,10 @@ impl SetJsonRecord {
     }
 }
 
-impl From<Page> for SetJsonRecord {
-    fn from(page: Page) -> Self {
+impl TryFrom<Page> for SetJsonRecord {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(page: Page) -> Result<Self> {
         let tpos = INTEGER_BYTES;
         let tx_num = page.get_int(tpos);
 
@@ -53,14 +50,14 @@ impl From<Page> for SetJsonRecord {
         let offset = page.get_int(opos);
 
         let vpos = opos + INTEGER_BYTES;
-        let old_value = page.get_json(vpos);
+        let old_value = page.get_json(vpos)?;
 
-        Self {
+        Ok(Self {
             tx_num,
             offset,
             old_value,
             block: BlockId::new(filename, block_num),
-        }
+        })
     }
 }
 impl From<&SetJsonRecord> for Page {
@@ -121,10 +118,10 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            &Some(serde_json::json!({ "key": "value" })),
+            &serde_json::json!({ "key": "value" }),
         );
 
-        let record2 = SetJsonRecord::from(Page::from(&record));
+        let record2 = SetJsonRecord::try_from(Page::from(&record)).unwrap();
 
         assert_eq!(record, record2);
     }
@@ -135,7 +132,7 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            &Some(serde_json::json!({ "key": "value" })),
+            &serde_json::json!({ "key": "value" }),
         );
         assert_eq!(
             record.to_string(),

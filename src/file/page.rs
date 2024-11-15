@@ -177,16 +177,17 @@ impl Page {
         self.buf[ofs..ofs + DATETIME_LEN as usize].copy_from_slice(bytes);
     }
 
-    pub fn json_len(json: &Option<serde_json::Value>) -> i32 {
-        let s = json.clone().map_or("".to_string(), |j| j.to_string());
+    pub fn json_len(json: &serde_json::Value) -> i32 {
+        let s = json.to_string();
         Self::str_len(&s)
     }
-    pub fn get_json(&self, offset: i32) -> Option<serde_json::Value> {
+    pub fn get_json(&self, offset: i32) -> Result<serde_json::Value> {
         let s = self.get_string(offset);
-        serde_json::from_str(&s).ok()
+        let v = serde_json::from_str(&s)?;
+        Ok(v)
     }
-    pub fn set_json(&mut self, offset: i32, json: &Option<serde_json::Value>) {
-        let s = json.clone().map_or("".to_string(), |j| j.to_string());
+    pub fn set_json(&mut self, offset: i32, json: &serde_json::Value) {
+        let s = json.to_string();
         self.set_string(offset, &s);
     }
 }
@@ -339,9 +340,8 @@ mod tests {
         ];
 
         for value in values {
-            let value = Some(value);
             p.set_json(0, &value);
-            assert_eq!(p.get_json(0), value, "value: {:?}", value);
+            assert_eq!(p.get_json(0).unwrap(), value, "value: {:?}", value);
         }
     }
 }

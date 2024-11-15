@@ -169,9 +169,9 @@ impl RecoveryManager {
         &mut self,
         buff: &Buffer,
         offset: i32,
-        _new_value: &Option<serde_json::Value>,
+        _new_value: &serde_json::Value,
     ) -> Result<i32> {
-        let old_value = buff.contents.get_json(offset);
+        let old_value = buff.contents.get_json(offset)?;
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe { SetJsonRecord::new(self.tx_num, block, offset, &old_value).write_to_log(&mut *lm) }
