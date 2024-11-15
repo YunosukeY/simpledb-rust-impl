@@ -143,9 +143,9 @@ impl RecoveryManager {
         &mut self,
         buff: &Buffer,
         offset: i32,
-        _new_value: &Option<chrono::NaiveTime>,
+        _new_value: &chrono::NaiveTime,
     ) -> Result<i32> {
-        let old_value = buff.contents.get_time(offset);
+        let old_value = buff.contents.get_time(offset)?;
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe { SetTimeRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut *lm) }

@@ -293,16 +293,16 @@ impl<'a> Transaction<'a> {
         Ok(())
     }
 
-    pub fn get_time(&mut self, block: &BlockId, offset: i32) -> Result<Option<chrono::NaiveTime>> {
+    pub fn get_time(&mut self, block: &BlockId, offset: i32) -> Result<chrono::NaiveTime> {
         self.cm.s_lock(block)?;
         let buffer = self.my_buffers.buffer(block);
-        Ok(buffer.contents.get_time(offset))
+        buffer.contents.get_time(offset)
     }
     pub fn set_time(
         &mut self,
         block: &BlockId,
         offset: i32,
-        value: &Option<chrono::NaiveTime>,
+        value: &chrono::NaiveTime,
         log: bool,
     ) -> Result<()> {
         self.cm.x_lock(block)?;
@@ -901,14 +901,14 @@ mod tests {
             tx.set_time(
                 &block,
                 0,
-                &chrono::NaiveTime::from_hms_opt(12, 34, 56),
+                &chrono::NaiveTime::from_hms_opt(12, 34, 56).unwrap(),
                 true,
             )
             .unwrap();
 
             assert_eq!(
                 tx.get_time(&block, 0).unwrap(),
-                chrono::NaiveTime::from_hms_opt(12, 34, 56)
+                chrono::NaiveTime::from_hms_opt(12, 34, 56).unwrap()
             );
         }
 
@@ -922,8 +922,8 @@ mod tests {
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
-            let time1 = chrono::NaiveTime::from_hms_opt(1, 2, 3);
-            let time2 = chrono::NaiveTime::from_hms_opt(4, 5, 6);
+            let time1 = chrono::NaiveTime::from_hms_opt(1, 2, 3).unwrap();
+            let time2 = chrono::NaiveTime::from_hms_opt(4, 5, 6).unwrap();
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
@@ -950,8 +950,8 @@ mod tests {
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
-            let time1 = chrono::NaiveTime::from_hms_opt(1, 2, 3);
-            let time2 = chrono::NaiveTime::from_hms_opt(4, 5, 6);
+            let time1 = chrono::NaiveTime::from_hms_opt(1, 2, 3).unwrap();
+            let time2 = chrono::NaiveTime::from_hms_opt(4, 5, 6).unwrap();
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();

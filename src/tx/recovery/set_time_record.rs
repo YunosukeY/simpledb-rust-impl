@@ -13,17 +13,12 @@ use super::log_record::{LogRecord, SET_TIME};
 pub struct SetTimeRecord {
     tx_num: i32,
     offset: i32,
-    old_value: Option<chrono::NaiveTime>,
+    old_value: chrono::NaiveTime,
     block: BlockId,
 }
 
 impl SetTimeRecord {
-    pub fn new(
-        tx_num: i32,
-        block: BlockId,
-        offset: i32,
-        old_value: Option<chrono::NaiveTime>,
-    ) -> Self {
+    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: chrono::NaiveTime) -> Self {
         Self {
             tx_num,
             offset,
@@ -38,8 +33,10 @@ impl SetTimeRecord {
     }
 }
 
-impl From<Page> for SetTimeRecord {
-    fn from(page: Page) -> Self {
+impl TryFrom<Page> for SetTimeRecord {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(page: Page) -> Result<Self> {
         let tpos = INTEGER_BYTES;
         let tx_num = page.get_int(tpos);
 
@@ -53,14 +50,14 @@ impl From<Page> for SetTimeRecord {
         let offset = page.get_int(opos);
 
         let vpos = opos + INTEGER_BYTES;
-        let old_value = page.get_time(vpos);
+        let old_value = page.get_time(vpos)?;
 
-        Self {
+        Ok(Self {
             tx_num,
             offset,
             old_value,
             block: BlockId::new(filename, block_num),
-        }
+        })
     }
 }
 impl From<&SetTimeRecord> for Page {
@@ -121,10 +118,10 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::NaiveTime::from_hms_opt(4, 5, 6),
+            chrono::NaiveTime::from_hms_opt(4, 5, 6).unwrap(),
         );
 
-        let record2 = SetTimeRecord::from(Page::from(&record));
+        let record2 = SetTimeRecord::try_from(Page::from(&record)).unwrap();
 
         assert_eq!(record, record2);
     }
@@ -135,7 +132,7 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::NaiveTime::from_hms_opt(4, 5, 6),
+            chrono::NaiveTime::from_hms_opt(4, 5, 6).unwrap(),
         );
 
         assert_eq!(

@@ -112,24 +112,24 @@ impl Page {
         self.buf[ofs..ofs + DATE_LEN as usize].copy_from_slice(bytes);
     }
 
-    pub fn time_len(_value: &Option<chrono::NaiveTime>) -> i32 {
+    pub fn time_len(_value: &chrono::NaiveTime) -> i32 {
         TIME_LEN
     }
-    pub fn get_time(&self, offset: i32) -> Option<NaiveTime> {
+    pub fn get_time(&self, offset: i32) -> Result<NaiveTime> {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + TIME_LEN as usize];
         let h = bytes[0] as u32;
         let m = bytes[1] as u32;
         let s = bytes[2] as u32;
         let f = u32::from_be_bytes(bytes[3..7].try_into().unwrap());
-        NaiveTime::from_hms_nano_opt(h, m, s, f)
+        NaiveTime::from_hms_nano_opt(h, m, s, f).ok_or("invalid time".into())
     }
-    pub fn set_time(&mut self, offset: i32, time: &Option<chrono::NaiveTime>) {
+    pub fn set_time(&mut self, offset: i32, time: &chrono::NaiveTime) {
         let ofs = offset as usize;
-        let h = time.map_or(0, |d| d.hour()) as u8;
-        let m = time.map_or(0, |d| d.minute()) as u8;
-        let s = time.map_or(0, |d| d.second()) as u8;
-        let f = time.map_or(0, |d| d.nanosecond()).to_be_bytes();
+        let h = time.hour() as u8;
+        let m = time.minute() as u8;
+        let s = time.second() as u8;
+        let f = time.nanosecond().to_be_bytes();
         let bytes = &[h, m, s, f[0], f[1], f[2], f[3]];
         self.buf[ofs..ofs + TIME_LEN as usize].copy_from_slice(bytes);
     }
@@ -295,15 +295,15 @@ mod tests {
         let mut p = Page::new(7);
 
         let values = [
-            NaiveTime::from_hms_opt(15, 4, 5),
-            Some(NaiveTime::MIN),
-            NaiveTime::from_hms_nano_opt(23, 59, 59, 999_999_999),
-            NaiveTime::from_hms_nano_opt(23, 59, 59, 1_999_999_999),
+            NaiveTime::from_hms_opt(15, 4, 5).unwrap(),
+            NaiveTime::MIN,
+            NaiveTime::from_hms_nano_opt(23, 59, 59, 999_999_999).unwrap(),
+            NaiveTime::from_hms_nano_opt(23, 59, 59, 1_999_999_999).unwrap(),
         ];
 
         for value in values {
             p.set_time(0, &value);
-            assert_eq!(p.get_time(0), value, "value: {:?}", value);
+            assert_eq!(p.get_time(0).unwrap(), value, "value: {:?}", value);
         }
     }
 

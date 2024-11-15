@@ -48,7 +48,7 @@ pub fn create_log_record(bytes: Vec<u8>) -> Result<Box<dyn LogRecord>> {
         SET_BOOL => Ok(Box::new(SetBoolRecord::from(p))),
         SET_DOUBLE => Ok(Box::new(SetDoubleRecord::from(p))),
         SET_DATE => Ok(Box::new(SetDateRecord::try_from(p)?)),
-        SET_TIME => Ok(Box::new(SetTimeRecord::from(p))),
+        SET_TIME => Ok(Box::new(SetTimeRecord::try_from(p)?)),
         SET_DATETIME => Ok(Box::new(SetDatetimeRecord::from(p))),
         SET_JSON => Ok(Box::new(SetJsonRecord::from(p))),
         _ => Err("invalid log record".into()),
