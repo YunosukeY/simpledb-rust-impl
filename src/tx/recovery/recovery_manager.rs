@@ -131,9 +131,9 @@ impl RecoveryManager {
         &mut self,
         buff: &Buffer,
         offset: i32,
-        _new_value: &Option<chrono::NaiveDate>,
+        _new_value: &chrono::NaiveDate,
     ) -> Result<i32> {
-        let old_value = buff.contents.get_date(offset);
+        let old_value = buff.contents.get_date(offset)?;
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe { SetDateRecord::new(self.tx_num, block, offset, old_value).write_to_log(&mut *lm) }

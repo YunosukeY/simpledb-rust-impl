@@ -4,7 +4,7 @@ use std::str::from_utf8;
 
 use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, TimeZone, Timelike};
 
-use crate::util::{BOOL_BYTES, DOUBLE_BYTES, INTEGER_BYTES, SHORT_BYTES};
+use crate::util::{Result, BOOL_BYTES, DOUBLE_BYTES, INTEGER_BYTES, SHORT_BYTES};
 
 pub struct Page {
     pub(super) buf: Vec<u8>,
@@ -92,22 +92,22 @@ impl Page {
         self.buf[ofs..ofs + DOUBLE_BYTES as usize].copy_from_slice(&value.to_be_bytes());
     }
 
-    pub fn date_len(_value: &Option<NaiveDate>) -> i32 {
+    pub fn date_len(_value: &NaiveDate) -> i32 {
         DATE_LEN
     }
-    pub fn get_date(&self, offset: i32) -> Option<NaiveDate> {
+    pub fn get_date(&self, offset: i32) -> Result<NaiveDate> {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + DATE_LEN as usize];
         let y = i32::from_be_bytes(bytes[0..INTEGER_BYTES as usize].try_into().unwrap());
         let m = bytes[4] as u32;
         let d = bytes[5] as u32;
-        NaiveDate::from_ymd_opt(y, m, d)
+        NaiveDate::from_ymd_opt(y, m, d).ok_or("invalid date".into())
     }
-    pub fn set_date(&mut self, offset: i32, date: &Option<NaiveDate>) {
+    pub fn set_date(&mut self, offset: i32, date: &NaiveDate) {
         let ofs = offset as usize;
-        let y = date.map_or(0, |d| d.year()).to_be_bytes();
-        let m = date.map_or(0, |d| d.month()) as u8;
-        let d = date.map_or(0, |d| d.day()) as u8;
+        let y = date.year().to_be_bytes();
+        let m = date.month() as u8;
+        let d = date.day() as u8;
         let bytes = &[y[0], y[1], y[2], y[3], m, d];
         self.buf[ofs..ofs + DATE_LEN as usize].copy_from_slice(bytes);
     }
@@ -277,16 +277,16 @@ mod tests {
         let mut p = Page::new(6);
 
         let values = [
-            NaiveDate::from_ymd_opt(2015, 3, 14),
-            NaiveDate::from_ymd_opt(0, 1, 1),
-            NaiveDate::from_ymd_opt(-4, 2, 29),
-            Some(NaiveDate::MAX),
-            Some(NaiveDate::MIN),
+            NaiveDate::from_ymd_opt(2015, 3, 14).unwrap(),
+            NaiveDate::from_ymd_opt(0, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(-4, 2, 29).unwrap(),
+            NaiveDate::MAX,
+            NaiveDate::MIN,
         ];
 
         for value in values {
             p.set_date(0, &value);
-            assert_eq!(p.get_date(0), value, "value: {:?}", value);
+            assert_eq!(p.get_date(0).unwrap(), value, "value: {:?}", value);
         }
     }
 

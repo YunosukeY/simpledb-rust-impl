@@ -270,16 +270,16 @@ impl<'a> Transaction<'a> {
         Ok(())
     }
 
-    pub fn get_date(&mut self, block: &BlockId, offset: i32) -> Result<Option<chrono::NaiveDate>> {
+    pub fn get_date(&mut self, block: &BlockId, offset: i32) -> Result<chrono::NaiveDate> {
         self.cm.s_lock(block)?;
         let buffer = self.my_buffers.buffer(block);
-        Ok(buffer.contents.get_date(offset))
+        buffer.contents.get_date(offset)
     }
     pub fn set_date(
         &mut self,
         block: &BlockId,
         offset: i32,
-        value: &Option<chrono::NaiveDate>,
+        value: &chrono::NaiveDate,
         log: bool,
     ) -> Result<()> {
         self.cm.x_lock(block)?;
@@ -810,14 +810,14 @@ mod tests {
             tx.set_date(
                 &block,
                 0,
-                &chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
+                &chrono::NaiveDate::from_ymd_opt(2021, 1, 1).unwrap(),
                 true,
             )
             .unwrap();
 
             assert_eq!(
                 tx.get_date(&block, 0).unwrap(),
-                chrono::NaiveDate::from_ymd_opt(2021, 1, 1)
+                chrono::NaiveDate::from_ymd_opt(2021, 1, 1).unwrap()
             );
         }
 
@@ -831,8 +831,8 @@ mod tests {
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
-            let date1 = chrono::NaiveDate::from_ymd_opt(2021, 1, 1);
-            let date2 = chrono::NaiveDate::from_ymd_opt(2021, 12, 31);
+            let date1 = chrono::NaiveDate::from_ymd_opt(2021, 1, 1).unwrap();
+            let date2 = chrono::NaiveDate::from_ymd_opt(2021, 12, 31).unwrap();
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
@@ -859,8 +859,8 @@ mod tests {
             let bm = Arc::new(BufferManager::new(fm.clone(), lm.clone(), 8));
             let lock_table = Arc::new(LockTable::new());
             let block = BlockId::new("tempfile".to_string(), 0);
-            let date1 = chrono::NaiveDate::from_ymd_opt(2021, 1, 1);
-            let date2 = chrono::NaiveDate::from_ymd_opt(2021, 12, 31);
+            let date1 = chrono::NaiveDate::from_ymd_opt(2021, 1, 1).unwrap();
+            let date2 = chrono::NaiveDate::from_ymd_opt(2021, 12, 31).unwrap();
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();

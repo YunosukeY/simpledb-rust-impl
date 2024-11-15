@@ -13,17 +13,12 @@ use super::log_record::{LogRecord, SET_DATE};
 pub struct SetDateRecord {
     tx_num: i32,
     offset: i32,
-    old_value: Option<chrono::NaiveDate>,
+    old_value: chrono::NaiveDate,
     block: BlockId,
 }
 
 impl SetDateRecord {
-    pub fn new(
-        tx_num: i32,
-        block: BlockId,
-        offset: i32,
-        old_value: Option<chrono::NaiveDate>,
-    ) -> Self {
+    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: chrono::NaiveDate) -> Self {
         Self {
             tx_num,
             offset,
@@ -38,8 +33,10 @@ impl SetDateRecord {
     }
 }
 
-impl From<Page> for SetDateRecord {
-    fn from(page: Page) -> Self {
+impl TryFrom<Page> for SetDateRecord {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(page: Page) -> Result<Self> {
         let tpos = INTEGER_BYTES;
         let tx_num = page.get_int(tpos);
 
@@ -53,14 +50,14 @@ impl From<Page> for SetDateRecord {
         let offset = page.get_int(opos);
 
         let vpos = opos + INTEGER_BYTES;
-        let old_value = page.get_date(vpos);
+        let old_value = page.get_date(vpos)?;
 
-        Self {
+        Ok(Self {
             tx_num,
             offset,
             old_value,
             block: BlockId::new(filename, block_num),
-        }
+        })
     }
 }
 impl From<&SetDateRecord> for Page {
@@ -121,10 +118,10 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
+            chrono::NaiveDate::from_ymd_opt(2021, 1, 1).unwrap(),
         );
 
-        let record2 = SetDateRecord::from(Page::from(&record));
+        let record2 = SetDateRecord::try_from(Page::from(&record)).unwrap();
 
         assert_eq!(record, record2);
     }
@@ -135,7 +132,7 @@ mod test {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            chrono::NaiveDate::from_ymd_opt(2021, 1, 1),
+            chrono::NaiveDate::from_ymd_opt(2021, 1, 1).unwrap(),
         );
 
         assert_eq!(

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::{file::page::Page, tx::transaction::Transaction};
+use crate::{file::page::Page, tx::transaction::Transaction, util::Result};
 
 use super::{
     checkpoint_record::CheckpointRecord, commit_record::CommitRecord, nq_ckpt_record::NqCkptRecord,
@@ -34,23 +34,23 @@ pub trait LogRecord {
     fn undo(&self, tx: &mut Transaction);
 }
 
-pub fn create_log_record(bytes: Vec<u8>) -> Option<Box<dyn LogRecord>> {
+pub fn create_log_record(bytes: Vec<u8>) -> Result<Box<dyn LogRecord>> {
     let p = Page::from(bytes);
     match p.get_int(0) {
-        CHECKPOINT => Some(Box::new(CheckpointRecord::new())),
-        NQCKPT => Some(Box::new(NqCkptRecord::from(p))),
-        START => Some(Box::new(StartRecord::from(p))),
-        COMMIT => Some(Box::new(CommitRecord::from(p))),
-        ROLLBACK => Some(Box::new(RollbackRecord::from(p))),
-        SET_INT => Some(Box::new(SetIntRecord::from(p))),
-        SET_BYTES => Some(Box::new(SetBytesRecord::from(p))),
-        SET_STRING => Some(Box::new(SetStringRecord::from(p))),
-        SET_BOOL => Some(Box::new(SetBoolRecord::from(p))),
-        SET_DOUBLE => Some(Box::new(SetDoubleRecord::from(p))),
-        SET_DATE => Some(Box::new(SetDateRecord::from(p))),
-        SET_TIME => Some(Box::new(SetTimeRecord::from(p))),
-        SET_DATETIME => Some(Box::new(SetDatetimeRecord::from(p))),
-        SET_JSON => Some(Box::new(SetJsonRecord::from(p))),
-        _ => None,
+        CHECKPOINT => Ok(Box::new(CheckpointRecord::new())),
+        NQCKPT => Ok(Box::new(NqCkptRecord::from(p))),
+        START => Ok(Box::new(StartRecord::from(p))),
+        COMMIT => Ok(Box::new(CommitRecord::from(p))),
+        ROLLBACK => Ok(Box::new(RollbackRecord::from(p))),
+        SET_INT => Ok(Box::new(SetIntRecord::from(p))),
+        SET_BYTES => Ok(Box::new(SetBytesRecord::from(p))),
+        SET_STRING => Ok(Box::new(SetStringRecord::from(p))),
+        SET_BOOL => Ok(Box::new(SetBoolRecord::from(p))),
+        SET_DOUBLE => Ok(Box::new(SetDoubleRecord::from(p))),
+        SET_DATE => Ok(Box::new(SetDateRecord::try_from(p)?)),
+        SET_TIME => Ok(Box::new(SetTimeRecord::from(p))),
+        SET_DATETIME => Ok(Box::new(SetDatetimeRecord::from(p))),
+        SET_JSON => Ok(Box::new(SetJsonRecord::from(p))),
+        _ => Err("invalid log record".into()),
     }
 }
