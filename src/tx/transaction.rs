@@ -320,16 +320,16 @@ impl<'a> Transaction<'a> {
         &mut self,
         block: &BlockId,
         offset: i32,
-    ) -> Result<Option<chrono::DateTime<chrono::FixedOffset>>> {
+    ) -> Result<chrono::DateTime<chrono::FixedOffset>> {
         self.cm.s_lock(block)?;
         let buffer = self.my_buffers.buffer(block);
-        Ok(buffer.contents.get_datetime(offset))
+        buffer.contents.get_datetime(offset)
     }
     pub fn set_datetime(
         &mut self,
         block: &BlockId,
         offset: i32,
-        value: &Option<chrono::DateTime<chrono::FixedOffset>>,
+        value: &chrono::DateTime<chrono::FixedOffset>,
         log: bool,
     ) -> Result<()> {
         self.cm.x_lock(block)?;
@@ -990,9 +990,9 @@ mod tests {
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_datetime(&block, 0, &Some(now), true).unwrap();
+            tx.set_datetime(&block, 0, &now, true).unwrap();
 
-            assert_eq!(tx.get_datetime(&block, 0).unwrap().unwrap(), now);
+            assert_eq!(tx.get_datetime(&block, 0).unwrap(), now);
         }
 
         #[test]
@@ -1010,17 +1010,17 @@ mod tests {
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_datetime(&block, 0, &Some(datetime1), true).unwrap();
+            tx.set_datetime(&block, 0, &datetime1, true).unwrap();
             tx.commit().unwrap();
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_datetime(&block, 0, &Some(datetime2), true).unwrap();
+            tx.set_datetime(&block, 0, &datetime2, true).unwrap();
             tx.rollback();
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            assert_eq!(tx.get_datetime(&block, 0).unwrap(), Some(datetime1));
+            assert_eq!(tx.get_datetime(&block, 0).unwrap(), datetime1);
         }
 
         #[test]
@@ -1038,12 +1038,12 @@ mod tests {
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_datetime(&block, 0, &Some(datetime1), true).unwrap();
+            tx.set_datetime(&block, 0, &datetime1, true).unwrap();
             tx.commit().unwrap();
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            tx.set_datetime(&block, 0, &Some(datetime2), true).unwrap();
+            tx.set_datetime(&block, 0, &datetime2, true).unwrap();
             tx.unpin(&block);
             tx.cm.release();
 
@@ -1052,7 +1052,7 @@ mod tests {
 
             let mut tx = Transaction::new(fm.clone(), lm.clone(), bm.clone(), lock_table.clone());
             tx.pin(&block).unwrap();
-            assert_eq!(tx.get_datetime(&block, 0).unwrap(), Some(datetime1));
+            assert_eq!(tx.get_datetime(&block, 0).unwrap(), datetime1);
         }
     }
 

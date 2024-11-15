@@ -134,10 +134,10 @@ impl Page {
         self.buf[ofs..ofs + TIME_LEN as usize].copy_from_slice(bytes);
     }
 
-    pub fn datetime_len(_value: &Option<DateTime<FixedOffset>>) -> i32 {
+    pub fn datetime_len(_value: &DateTime<FixedOffset>) -> i32 {
         DATETIME_LEN
     }
-    pub fn get_datetime(&self, offset: i32) -> Option<DateTime<FixedOffset>> {
+    pub fn get_datetime(&self, offset: i32) -> Result<DateTime<FixedOffset>> {
         let ofs = offset as usize;
         let bytes = &self.buf[ofs..ofs + DATETIME_LEN as usize];
         let y = u16::from_be_bytes(bytes[0..2].try_into().unwrap()) as i32;
@@ -153,24 +153,24 @@ impl Page {
             NaiveDate::from_ymd_opt(y, mo, d).and_then(|d| d.and_hms_nano_opt(h, mi, s, f));
         let tz = FixedOffset::east_opt(tz);
         if datetime.is_none() || tz.is_none() {
-            return None;
+            return Err("invalid datetime".into());
         }
         let datetime = datetime.unwrap();
         let tz = tz.unwrap();
-        tz.from_local_datetime(&datetime).single()
+        tz.from_local_datetime(&datetime)
+            .single()
+            .ok_or("invalid datetime".into())
     }
-    pub fn set_datetime(&mut self, offset: i32, datetime: &Option<DateTime<FixedOffset>>) {
+    pub fn set_datetime(&mut self, offset: i32, datetime: &DateTime<FixedOffset>) {
         let ofs = offset as usize;
-        let y = (datetime.map_or(0, |d| d.year() as u16)).to_be_bytes();
-        let mo = datetime.map_or(0, |d| d.month()) as u8;
-        let d = datetime.map_or(0, |d| d.day()) as u8;
-        let h = datetime.map_or(0, |d| d.hour()) as u8;
-        let mi = datetime.map_or(0, |d| d.minute()) as u8;
-        let s = datetime.map_or(0, |d| d.second()) as u8;
-        let f = datetime.map_or(0, |d| d.nanosecond()).to_be_bytes();
-        let tz = datetime
-            .map_or(0, |d| d.offset().local_minus_utc())
-            .to_be_bytes();
+        let y = (datetime.year() as u16).to_be_bytes();
+        let mo = datetime.month() as u8;
+        let d = datetime.day() as u8;
+        let h = datetime.hour() as u8;
+        let mi = datetime.minute() as u8;
+        let s = datetime.second() as u8;
+        let f = datetime.nanosecond().to_be_bytes();
+        let tz = datetime.offset().local_minus_utc().to_be_bytes();
         let bytes = &[
             y[0], y[1], mo, d, h, mi, s, f[0], f[1], f[2], f[3], tz[0], tz[1], tz[2], tz[3],
         ];
@@ -320,7 +320,7 @@ mod tests {
         ];
 
         for value in values {
-            p.set_datetime(0, &Some(value));
+            p.set_datetime(0, &value);
             assert_eq!(p.get_datetime(0).unwrap(), value, "value: {}", value);
         }
     }

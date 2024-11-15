@@ -13,7 +13,7 @@ use super::log_record::{LogRecord, SET_DATETIME};
 pub struct SetDatetimeRecord {
     tx_num: i32,
     offset: i32,
-    old_value: Option<chrono::DateTime<chrono::FixedOffset>>,
+    old_value: chrono::DateTime<chrono::FixedOffset>,
     block: BlockId,
 }
 
@@ -22,7 +22,7 @@ impl SetDatetimeRecord {
         tx_num: i32,
         block: BlockId,
         offset: i32,
-        old_value: Option<chrono::DateTime<chrono::FixedOffset>>,
+        old_value: chrono::DateTime<chrono::FixedOffset>,
     ) -> Self {
         Self {
             tx_num,
@@ -38,8 +38,10 @@ impl SetDatetimeRecord {
     }
 }
 
-impl From<Page> for SetDatetimeRecord {
-    fn from(page: Page) -> Self {
+impl TryFrom<Page> for SetDatetimeRecord {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(page: Page) -> Result<Self> {
         let tpos = INTEGER_BYTES;
         let tx_num = page.get_int(tpos);
 
@@ -53,14 +55,14 @@ impl From<Page> for SetDatetimeRecord {
         let offset = page.get_int(opos);
 
         let vpos = opos + INTEGER_BYTES;
-        let old_value = page.get_datetime(vpos);
+        let old_value = page.get_datetime(vpos)?;
 
-        Self {
+        Ok(Self {
             tx_num,
             offset,
             old_value,
             block: BlockId::new(filename, block_num),
-        }
+        })
     }
 }
 impl From<&SetDatetimeRecord> for Page {
@@ -121,10 +123,10 @@ mod tests {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            Some(chrono::Utc::now().fixed_offset()),
+            chrono::Utc::now().fixed_offset(),
         );
 
-        let record2 = SetDatetimeRecord::from(Page::from(&record));
+        let record2 = SetDatetimeRecord::try_from(Page::from(&record)).unwrap();
 
         assert_eq!(record2, record);
     }
@@ -135,7 +137,7 @@ mod tests {
             1,
             BlockId::new("filename".to_string(), 2),
             3,
-            Some(chrono::Utc::now().fixed_offset()),
+            chrono::Utc::now().fixed_offset(),
         );
 
         assert_eq!(

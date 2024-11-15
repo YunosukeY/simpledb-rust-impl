@@ -155,9 +155,9 @@ impl RecoveryManager {
         &mut self,
         buff: &Buffer,
         offset: i32,
-        _new_value: &Option<chrono::DateTime<chrono::FixedOffset>>,
+        _new_value: &chrono::DateTime<chrono::FixedOffset>,
     ) -> Result<i32> {
-        let old_value = buff.contents.get_datetime(offset);
+        let old_value = buff.contents.get_datetime(offset)?;
         let block = buff.block().clone().unwrap();
         let lm = Arc::as_ptr(&self.lm) as *mut LogManager;
         unsafe {
