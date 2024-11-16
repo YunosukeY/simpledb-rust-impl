@@ -37,7 +37,7 @@ impl Layout {
         self.slot_size
     }
 
-    fn length_in_bytes(&self, field_name: &str) -> Option<i32> {
+    pub fn length_in_bytes(&self, field_name: &str) -> Option<i32> {
         let column_type = self.schema.column_type(field_name)?;
         match column_type {
             ColumnType::Integer => Some(INTEGER_BYTES),

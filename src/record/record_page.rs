@@ -2,7 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::{file::block_id::BlockId, sql::ColumnType, tx::transaction::Transaction, util::Result};
+use crate::{
+    file::{block_id::BlockId, page::Page},
+    sql::ColumnType,
+    tx::transaction::Transaction,
+    util::Result,
+};
 
 use super::layout::Layout;
 
@@ -54,6 +59,11 @@ impl<'a> RecordPage<'a> {
     }
     pub fn set_bytes(&mut self, slot: i32, field_name: &str, value: &[u8]) -> Result<()> {
         let field_pos = self.field_pos(slot, field_name).ok_or("field not found")?;
+
+        if Page::bytes_len(value) > self.layout.length_in_bytes(field_name).unwrap() {
+            return Err("bytes too long".into());
+        }
+
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
         unsafe { (*tx).set_bytes(&self.block, field_pos, value, true) }
     }
@@ -65,6 +75,11 @@ impl<'a> RecordPage<'a> {
     }
     pub fn set_string(&mut self, slot: i32, field_name: &str, value: &str) -> Result<()> {
         let field_pos = self.field_pos(slot, field_name).ok_or("field not found")?;
+
+        if Page::str_len(value) > self.layout.length_in_bytes(field_name).unwrap() {
+            return Err("string too long".into());
+        }
+
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
         unsafe { (*tx).set_string(&self.block, field_pos, value, true) }
     }
@@ -148,6 +163,11 @@ impl<'a> RecordPage<'a> {
         value: &serde_json::Value,
     ) -> Result<()> {
         let field_pos = self.field_pos(slot, field_name).ok_or("field not found")?;
+
+        if Page::json_len(&Some(value.clone())) > self.layout.length_in_bytes(field_name).unwrap() {
+            return Err("json too long".into());
+        }
+
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
         unsafe { (*tx).set_json(&self.block, field_pos, &Some(value.clone()), true) }
     }
