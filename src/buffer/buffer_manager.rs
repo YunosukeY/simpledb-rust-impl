@@ -136,7 +136,7 @@ impl BufferManager {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use crate::server::simple_db::SimpleDB;
 
     use super::*;
 
@@ -149,13 +149,14 @@ mod tests {
         )
         .unwrap();
 
-        let fm = FileManager::new(
-            PathBuf::from("testdata/buffer/buffer_manager/pin_and_unpin"),
+        let db = SimpleDB::new(
+            "testdata/buffer/buffer_manager/pin_and_unpin",
             10,
+            3,
+            "templog",
         );
-        let fm = Arc::new(fm);
-        let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-        let mut bm = BufferManager::new(fm.clone(), lm, 3);
+        let bm = Arc::as_ptr(&db.buffer_manager()) as *mut BufferManager;
+        let bm = unsafe { &mut *bm };
         assert_eq!(bm.available(), 3);
 
         let mut buffers: Vec<i32> = vec![];
@@ -209,13 +210,14 @@ mod tests {
         )
         .unwrap();
 
-        let fm = FileManager::new(
-            PathBuf::from("testdata/buffer/buffer_manager/modify_and_flush"),
+        let db = SimpleDB::new(
+            "testdata/buffer/buffer_manager/modify_and_flush",
             10,
+            3,
+            "templog",
         );
-        let fm = Arc::new(fm);
-        let lm = Arc::new(LogManager::new(fm.clone(), "templog".to_string()));
-        let mut bm = BufferManager::new(fm.clone(), lm, 3);
+        let bm = Arc::as_ptr(&db.buffer_manager()) as *mut BufferManager;
+        let bm = unsafe { &mut *bm };
 
         // 0: modify and set_modified
         bm.pin(&BlockId::new("testfile".to_string(), 0)).unwrap();
