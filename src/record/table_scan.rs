@@ -147,7 +147,7 @@ impl<'a> Scan for TableScan<'a> {
 }
 
 impl<'a> UpdateScan for TableScan<'a> {
-    fn set_value(&mut self, field_name: &str, value: Constant) {
+    fn set_value(&mut self, field_name: &str, value: Constant) -> &mut Self {
         let layout = Arc::as_ptr(&self.layout);
         match unsafe { (*layout).schema().column_type(field_name).unwrap() } {
             ColumnType::Integer => self.set_int(field_name, value.as_int().unwrap()),
@@ -162,67 +162,80 @@ impl<'a> UpdateScan for TableScan<'a> {
         }
     }
 
-    fn set_int(&mut self, field_name: &str, value: i32) {
+    fn set_int(&mut self, field_name: &str, value: i32) -> &mut Self {
         self.rp
             .as_mut()
             .unwrap()
             .set_int(self.current_slot, field_name, value);
+        self
     }
 
-    fn set_double(&mut self, field_name: &str, value: f64) {
+    fn set_double(&mut self, field_name: &str, value: f64) -> &mut Self {
         self.rp
             .as_mut()
             .unwrap()
             .set_double(self.current_slot, field_name, value);
+        self
     }
 
-    fn set_bytes(&mut self, field_name: &str, value: &[u8]) {
+    fn set_bytes(&mut self, field_name: &str, value: &[u8]) -> &mut Self {
         self.rp
             .as_mut()
             .unwrap()
             .set_bytes(self.current_slot, field_name, value);
+        self
     }
 
-    fn set_string(&mut self, field_name: &str, value: &str) {
+    fn set_string(&mut self, field_name: &str, value: &str) -> &mut Self {
         self.rp
             .as_mut()
             .unwrap()
             .set_string(self.current_slot, field_name, value);
+        self
     }
 
-    fn set_boolean(&mut self, field_name: &str, value: bool) {
+    fn set_boolean(&mut self, field_name: &str, value: bool) -> &mut Self {
         self.rp
             .as_mut()
             .unwrap()
             .set_bool(self.current_slot, field_name, value);
+        self
     }
 
-    fn set_date(&mut self, field_name: &str, value: chrono::NaiveDate) {
+    fn set_date(&mut self, field_name: &str, value: chrono::NaiveDate) -> &mut Self {
         self.rp
             .as_mut()
             .unwrap()
             .set_date(self.current_slot, field_name, value);
+        self
     }
 
-    fn set_time(&mut self, field_name: &str, value: chrono::NaiveTime) {
+    fn set_time(&mut self, field_name: &str, value: chrono::NaiveTime) -> &mut Self {
         self.rp
             .as_mut()
             .unwrap()
             .set_time(self.current_slot, field_name, value);
+        self
     }
 
-    fn set_datetime(&mut self, field_name: &str, value: chrono::DateTime<chrono::FixedOffset>) {
+    fn set_datetime(
+        &mut self,
+        field_name: &str,
+        value: chrono::DateTime<chrono::FixedOffset>,
+    ) -> &mut Self {
         self.rp
             .as_mut()
             .unwrap()
             .set_datetime(self.current_slot, field_name, value);
+        self
     }
 
-    fn set_json(&mut self, field_name: &str, value: &serde_json::Value) {
+    fn set_json(&mut self, field_name: &str, value: &serde_json::Value) -> &mut Self {
         self.rp
             .as_mut()
             .unwrap()
             .set_json(self.current_slot, field_name, value);
+        self
     }
 
     fn insert(&mut self) {
@@ -267,6 +280,7 @@ impl<'a> TableScan<'a> {
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
         let block = unsafe { (*tx).append(&self.filename).unwrap() };
         self.rp = Some(RecordPage::new(self.tx.clone(), block, self.layout.clone()));
+        self.rp.as_mut().unwrap().format();
         self.current_slot = -1;
     }
 
@@ -274,5 +288,95 @@ impl<'a> TableScan<'a> {
         let block_num = self.rp.as_ref().unwrap().block().block_num();
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
         unsafe { block_num == (*tx).size(&self.filename).unwrap() - 1 }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{record::schema::Schema, server::simple_db::SimpleDB};
+
+    use super::*;
+
+    #[test]
+    fn test() {
+        let db = SimpleDB::new("testdata/record/table_scan/test", 4096, 8, "templog");
+        let tx = Arc::new(db.new_tx());
+        let mut schema = Schema::new();
+        schema
+            .add_int_field("int")
+            .add_double_field("double")
+            .add_bytes_field("bytes", 10)
+            .add_string_field("string", 10)
+            .add_boolean_field("boolean")
+            .add_date_field("date")
+            .add_time_field("time")
+            .add_datetime_field("datetime")
+            .add_json_field("json", 30);
+        let layout = Arc::new(Layout::from(schema));
+        let mut scan = TableScan::new(tx, "temp", layout);
+        let data = vec![
+            (
+                1,
+                1.1,
+                b"foo",
+                "foo",
+                true,
+                chrono::NaiveDate::from_ymd_opt(1, 1, 1).unwrap(),
+                chrono::NaiveTime::from_hms_opt(1, 1, 1).unwrap(),
+                chrono::DateTime::parse_from_rfc3339("0001-01-01 01:01:01Z").unwrap(),
+                serde_json::json!({"k": "v1"}),
+            ),
+            (
+                2,
+                2.2,
+                b"bar",
+                "bar",
+                false,
+                chrono::NaiveDate::from_ymd_opt(2, 2, 2).unwrap(),
+                chrono::NaiveTime::from_hms_opt(2, 2, 2).unwrap(),
+                chrono::DateTime::parse_from_rfc3339("0002-02-02 02:02:02Z").unwrap(),
+                serde_json::json!({"k": "v2"}),
+            ),
+            (
+                3,
+                3.3,
+                b"baz",
+                "baz",
+                true,
+                chrono::NaiveDate::from_ymd_opt(3, 3, 3).unwrap(),
+                chrono::NaiveTime::from_hms_opt(3, 3, 3).unwrap(),
+                chrono::DateTime::parse_from_rfc3339("0003-03-03 03:03:03Z").unwrap(),
+                serde_json::json!({"k": "v3"}),
+            ),
+        ];
+
+        for (int, double, bytes, string, boolean, date, time, datetime, json) in data.clone() {
+            scan.insert();
+            scan.set_int("int", int)
+                .set_double("double", double)
+                .set_bytes("bytes", bytes)
+                .set_string("string", string)
+                .set_boolean("boolean", boolean)
+                .set_date("date", date)
+                .set_time("time", time)
+                .set_datetime("datetime", datetime)
+                .set_json("json", &json);
+        }
+
+        scan.before_first();
+
+        for (int, double, bytes, string, boolean, date, time, datetime, json) in data {
+            assert!(scan.next());
+            assert!(scan.get_int("int") == int);
+            assert!(scan.get_double("double") == double);
+            assert!(scan.get_bytes("bytes") == bytes);
+            assert!(scan.get_string("string") == string);
+            assert!(scan.get_boolean("boolean") == boolean);
+            assert!(scan.get_date("date") == date);
+            assert!(scan.get_time("time") == time);
+            assert!(scan.get_datetime("datetime") == datetime);
+            assert!(scan.get_json("json") == json);
+        }
+        assert!(!scan.next());
     }
 }

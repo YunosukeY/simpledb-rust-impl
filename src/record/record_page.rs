@@ -17,7 +17,12 @@ pub struct RecordPage<'a> {
 
 impl<'a> RecordPage<'a> {
     pub fn new(tx: Arc<Transaction<'a>>, block: BlockId, layout: Arc<Layout>) -> Self {
-        Self { tx, block, layout }
+        let record = Self { tx, block, layout };
+        let tx = Arc::as_ptr(&record.tx) as *mut Transaction;
+        unsafe {
+            (*tx).pin(&record.block).unwrap();
+        }
+        record
     }
 
     pub fn get_int(&mut self, slot: i32, field_name: &str) -> i32 {
