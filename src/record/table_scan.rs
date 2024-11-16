@@ -7,6 +7,7 @@ use crate::{
     query::{constant::Constant, scan::Scan, update_scan::UpdateScan},
     sql::ColumnType,
     tx::transaction::Transaction,
+    util::Result,
 };
 
 use super::{layout::Layout, record_page::RecordPage, rid::Rid};
@@ -20,7 +21,7 @@ pub struct TableScan<'a> {
 }
 
 impl<'a> TableScan<'a> {
-    pub fn new(tx: Arc<Transaction<'a>>, table_name: &str, layout: Arc<Layout>) -> Self {
+    pub fn new(tx: Arc<Transaction<'a>>, table_name: &str, layout: Arc<Layout>) -> Result<Self> {
         let mut scan = Self {
             tx,
             layout,
@@ -29,107 +30,113 @@ impl<'a> TableScan<'a> {
             current_slot: 0,
         };
         let tx = Arc::as_ptr(&scan.tx) as *mut Transaction;
-        if unsafe { (*tx).size(&scan.filename).unwrap() == 0 } {
-            scan.move_to_new_block();
+        if unsafe { (*tx).size(&scan.filename)? == 0 } {
+            scan.move_to_new_block()?;
         } else {
-            scan.move_to_block(0);
+            scan.move_to_block(0)?;
         }
-        scan
+        Ok(scan)
     }
 }
 
 impl<'a> Scan for TableScan<'a> {
-    fn before_first(&mut self) {
-        self.move_to_block(0);
+    fn before_first(&mut self) -> Result<()> {
+        self.move_to_block(0)
     }
 
-    fn next(&mut self) -> bool {
-        self.current_slot = self.rp.as_mut().unwrap().next_after(self.current_slot);
+    fn next(&mut self) -> Result<bool> {
+        self.current_slot = self.rp.as_mut().unwrap().next_after(self.current_slot)?;
         while self.current_slot < 0 {
-            if self.at_last_block() {
-                return false;
+            if self.at_last_block()? {
+                return Ok(false);
             }
-            self.move_to_block(self.rp.as_ref().unwrap().block().block_num() + 1);
-            self.current_slot = self.rp.as_mut().unwrap().next_after(self.current_slot);
+            self.move_to_block(self.rp.as_ref().unwrap().block().block_num() + 1)?;
+            self.current_slot = self.rp.as_mut().unwrap().next_after(self.current_slot)?;
         }
-        true
+        Ok(true)
     }
 
-    fn get_int(&mut self, field_name: &str) -> i32 {
+    fn get_int(&mut self, field_name: &str) -> Result<i32> {
         self.rp
             .as_mut()
             .unwrap()
             .get_int(self.current_slot, field_name)
     }
 
-    fn get_double(&mut self, field_name: &str) -> f64 {
+    fn get_double(&mut self, field_name: &str) -> Result<f64> {
         self.rp
             .as_mut()
             .unwrap()
             .get_double(self.current_slot, field_name)
     }
 
-    fn get_bytes(&mut self, field_name: &str) -> Vec<u8> {
+    fn get_bytes(&mut self, field_name: &str) -> Result<Vec<u8>> {
         self.rp
             .as_mut()
             .unwrap()
             .get_bytes(self.current_slot, field_name)
     }
 
-    fn get_string(&mut self, field_name: &str) -> String {
+    fn get_string(&mut self, field_name: &str) -> Result<String> {
         self.rp
             .as_mut()
             .unwrap()
             .get_string(self.current_slot, field_name)
     }
 
-    fn get_boolean(&mut self, field_name: &str) -> bool {
+    fn get_boolean(&mut self, field_name: &str) -> Result<bool> {
         self.rp
             .as_mut()
             .unwrap()
             .get_bool(self.current_slot, field_name)
     }
 
-    fn get_date(&mut self, field_name: &str) -> chrono::NaiveDate {
+    fn get_date(&mut self, field_name: &str) -> Result<chrono::NaiveDate> {
         self.rp
             .as_mut()
             .unwrap()
             .get_date(self.current_slot, field_name)
     }
 
-    fn get_time(&mut self, field_name: &str) -> chrono::NaiveTime {
+    fn get_time(&mut self, field_name: &str) -> Result<chrono::NaiveTime> {
         self.rp
             .as_mut()
             .unwrap()
             .get_time(self.current_slot, field_name)
     }
 
-    fn get_datetime(&mut self, field_name: &str) -> chrono::DateTime<chrono::FixedOffset> {
+    fn get_datetime(&mut self, field_name: &str) -> Result<chrono::DateTime<chrono::FixedOffset>> {
         self.rp
             .as_mut()
             .unwrap()
             .get_datetime(self.current_slot, field_name)
     }
 
-    fn get_json(&mut self, field_name: &str) -> serde_json::Value {
+    fn get_json(&mut self, field_name: &str) -> Result<serde_json::Value> {
         self.rp
             .as_mut()
             .unwrap()
             .get_json(self.current_slot, field_name)
     }
 
-    fn get_value(&mut self, field_name: &str) -> Constant {
+    fn get_value(&mut self, field_name: &str) -> Result<Constant> {
         let layout = Arc::as_ptr(&self.layout);
-        match unsafe { (*layout).schema().column_type(field_name).unwrap() } {
-            ColumnType::Integer => Constant::from(self.get_int(field_name)),
-            ColumnType::Double => Constant::from(self.get_double(field_name)),
-            ColumnType::VarBit => Constant::from(self.get_bytes(field_name)),
-            ColumnType::VarChar => Constant::from(self.get_string(field_name)),
-            ColumnType::Boolean => Constant::from(self.get_boolean(field_name)),
-            ColumnType::Date => Constant::from(self.get_date(field_name)),
-            ColumnType::Time => Constant::from(self.get_time(field_name)),
-            ColumnType::DateTime => Constant::from(self.get_datetime(field_name)),
-            ColumnType::Json => Constant::from(self.get_json(field_name)),
+        let column_type = unsafe {
+            (*layout)
+                .schema()
+                .column_type(field_name)
+                .ok_or("field not found")?
+        };
+        match column_type {
+            ColumnType::Integer => Ok(Constant::from(self.get_int(field_name)?)),
+            ColumnType::Double => Ok(Constant::from(self.get_double(field_name)?)),
+            ColumnType::VarBit => Ok(Constant::from(self.get_bytes(field_name)?)),
+            ColumnType::VarChar => Ok(Constant::from(self.get_string(field_name)?)),
+            ColumnType::Boolean => Ok(Constant::from(self.get_boolean(field_name)?)),
+            ColumnType::Date => Ok(Constant::from(self.get_date(field_name)?)),
+            ColumnType::Time => Ok(Constant::from(self.get_time(field_name)?)),
+            ColumnType::DateTime => Ok(Constant::from(self.get_datetime(field_name)?)),
+            ColumnType::Json => Ok(Constant::from(self.get_json(field_name)?)),
         }
     }
 
@@ -147,23 +154,41 @@ impl<'a> Scan for TableScan<'a> {
 }
 
 impl<'a> UpdateScan for TableScan<'a> {
-    fn set_value(&mut self, field_name: &str, value: Constant) -> &mut Self {
+    fn set_value(&mut self, field_name: &str, value: Constant) -> Result<()> {
         let layout = Arc::as_ptr(&self.layout);
-        match unsafe { (*layout).schema().column_type(field_name).unwrap() } {
-            ColumnType::Integer => self.set_int(field_name, value.as_int().unwrap()),
-            ColumnType::Double => self.set_double(field_name, value.as_double().unwrap()),
-            ColumnType::VarBit => self.set_bytes(field_name, value.as_bytes().unwrap()),
-            ColumnType::VarChar => self.set_string(field_name, value.as_string().unwrap()),
-            ColumnType::Boolean => self.set_boolean(field_name, value.as_boolean().unwrap()),
-            ColumnType::Date => self.set_date(field_name, value.as_date().unwrap()),
-            ColumnType::Time => self.set_time(field_name, value.as_time().unwrap()),
-            ColumnType::DateTime => self.set_datetime(field_name, value.as_datetime().unwrap()),
-            ColumnType::Json => self.set_json(field_name, value.as_json().unwrap()),
-        }
+        let column_type = unsafe {
+            (*layout)
+                .schema()
+                .column_type(field_name)
+                .ok_or("field not found")?
+        };
+        match column_type {
+            ColumnType::Integer => self.set_int(field_name, value.as_int().ok_or("invalid value")?),
+            ColumnType::Double => {
+                self.set_double(field_name, value.as_double().ok_or("invalid value")?)
+            }
+            ColumnType::VarBit => {
+                self.set_bytes(field_name, value.as_bytes().ok_or("invalid value")?)
+            }
+            ColumnType::VarChar => {
+                self.set_string(field_name, value.as_string().ok_or("invalid value")?)
+            }
+            ColumnType::Boolean => {
+                self.set_boolean(field_name, value.as_boolean().ok_or("invalid value")?)
+            }
+            ColumnType::Date => self.set_date(field_name, value.as_date().ok_or("invalid value")?),
+            ColumnType::Time => self.set_time(field_name, value.as_time().ok_or("invalid value")?),
+            ColumnType::DateTime => {
+                self.set_datetime(field_name, value.as_datetime().ok_or("invalid value")?)
+            }
+            ColumnType::Json => self.set_json(field_name, value.as_json().ok_or("invalid value")?),
+        };
+        Ok(())
     }
 
     fn set_int(&mut self, field_name: &str, value: i32) -> &mut Self {
-        self.rp
+        let _ = self
+            .rp
             .as_mut()
             .unwrap()
             .set_int(self.current_slot, field_name, value);
@@ -171,7 +196,8 @@ impl<'a> UpdateScan for TableScan<'a> {
     }
 
     fn set_double(&mut self, field_name: &str, value: f64) -> &mut Self {
-        self.rp
+        let _ = self
+            .rp
             .as_mut()
             .unwrap()
             .set_double(self.current_slot, field_name, value);
@@ -179,7 +205,8 @@ impl<'a> UpdateScan for TableScan<'a> {
     }
 
     fn set_bytes(&mut self, field_name: &str, value: &[u8]) -> &mut Self {
-        self.rp
+        let _ = self
+            .rp
             .as_mut()
             .unwrap()
             .set_bytes(self.current_slot, field_name, value);
@@ -187,7 +214,8 @@ impl<'a> UpdateScan for TableScan<'a> {
     }
 
     fn set_string(&mut self, field_name: &str, value: &str) -> &mut Self {
-        self.rp
+        let _ = self
+            .rp
             .as_mut()
             .unwrap()
             .set_string(self.current_slot, field_name, value);
@@ -195,7 +223,8 @@ impl<'a> UpdateScan for TableScan<'a> {
     }
 
     fn set_boolean(&mut self, field_name: &str, value: bool) -> &mut Self {
-        self.rp
+        let _ = self
+            .rp
             .as_mut()
             .unwrap()
             .set_bool(self.current_slot, field_name, value);
@@ -203,7 +232,8 @@ impl<'a> UpdateScan for TableScan<'a> {
     }
 
     fn set_date(&mut self, field_name: &str, value: chrono::NaiveDate) -> &mut Self {
-        self.rp
+        let _ = self
+            .rp
             .as_mut()
             .unwrap()
             .set_date(self.current_slot, field_name, value);
@@ -211,7 +241,8 @@ impl<'a> UpdateScan for TableScan<'a> {
     }
 
     fn set_time(&mut self, field_name: &str, value: chrono::NaiveTime) -> &mut Self {
-        self.rp
+        let _ = self
+            .rp
             .as_mut()
             .unwrap()
             .set_time(self.current_slot, field_name, value);
@@ -223,7 +254,8 @@ impl<'a> UpdateScan for TableScan<'a> {
         field_name: &str,
         value: chrono::DateTime<chrono::FixedOffset>,
     ) -> &mut Self {
-        self.rp
+        let _ = self
+            .rp
             .as_mut()
             .unwrap()
             .set_datetime(self.current_slot, field_name, value);
@@ -231,27 +263,29 @@ impl<'a> UpdateScan for TableScan<'a> {
     }
 
     fn set_json(&mut self, field_name: &str, value: &serde_json::Value) -> &mut Self {
-        self.rp
+        let _ = self
+            .rp
             .as_mut()
             .unwrap()
             .set_json(self.current_slot, field_name, value);
         self
     }
 
-    fn insert(&mut self) {
-        self.current_slot = self.rp.as_mut().unwrap().insert_after(self.current_slot);
+    fn insert(&mut self) -> Result<()> {
+        self.current_slot = self.rp.as_mut().unwrap().insert_after(self.current_slot)?;
         while self.current_slot < 0 {
-            if self.at_last_block() {
-                self.move_to_new_block();
+            if self.at_last_block()? {
+                self.move_to_new_block()?;
             } else {
-                self.move_to_block(self.rp.as_ref().unwrap().block().block_num() + 1);
+                self.move_to_block(self.rp.as_ref().unwrap().block().block_num() + 1)?;
             }
-            self.current_slot = self.rp.as_mut().unwrap().insert_after(self.current_slot);
+            self.current_slot = self.rp.as_mut().unwrap().insert_after(self.current_slot)?;
         }
+        Ok(())
     }
 
-    fn delete(&mut self) {
-        self.rp.as_mut().unwrap().delete(self.current_slot);
+    fn delete(&mut self) -> Result<()> {
+        self.rp.as_mut().unwrap().delete(self.current_slot)
     }
 
     fn get_rid(&self) -> Rid {
@@ -259,35 +293,50 @@ impl<'a> UpdateScan for TableScan<'a> {
         Rid::new(block_num, self.current_slot)
     }
 
-    fn move_to_rid(&mut self, rid: Rid) {
+    fn move_to_rid(&mut self, rid: Rid) -> Result<()> {
         self.close();
         let block = BlockId::new(self.filename.clone(), rid.block_num());
-        self.rp = Some(RecordPage::new(self.tx.clone(), block, self.layout.clone()));
+        self.rp = Some(RecordPage::new(
+            self.tx.clone(),
+            block,
+            self.layout.clone(),
+        )?);
         self.current_slot = rid.slot();
+        Ok(())
     }
 }
 
 impl<'a> TableScan<'a> {
-    fn move_to_block(&mut self, block_num: i32) {
+    fn move_to_block(&mut self, block_num: i32) -> Result<()> {
         self.close();
         let block = BlockId::new(self.filename.clone(), block_num);
-        self.rp = Some(RecordPage::new(self.tx.clone(), block, self.layout.clone()));
+        self.rp = Some(RecordPage::new(
+            self.tx.clone(),
+            block,
+            self.layout.clone(),
+        )?);
         self.current_slot = -1;
+        Ok(())
     }
 
-    fn move_to_new_block(&mut self) {
+    fn move_to_new_block(&mut self) -> Result<()> {
         self.close();
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        let block = unsafe { (*tx).append(&self.filename).unwrap() };
-        self.rp = Some(RecordPage::new(self.tx.clone(), block, self.layout.clone()));
-        self.rp.as_mut().unwrap().format();
+        let block = unsafe { (*tx).append(&self.filename)? };
+        self.rp = Some(RecordPage::new(
+            self.tx.clone(),
+            block,
+            self.layout.clone(),
+        )?);
+        self.rp.as_mut().unwrap().format()?;
         self.current_slot = -1;
+        Ok(())
     }
 
-    fn at_last_block(&mut self) -> bool {
+    fn at_last_block(&mut self) -> Result<bool> {
         let block_num = self.rp.as_ref().unwrap().block().block_num();
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { block_num == (*tx).size(&self.filename).unwrap() - 1 }
+        unsafe { Ok(block_num == (*tx).size(&self.filename)? - 1) }
     }
 }
 
@@ -313,7 +362,7 @@ mod tests {
             .add_datetime_field("datetime")
             .add_json_field("json", 30);
         let layout = Arc::new(Layout::from(schema));
-        let mut scan = TableScan::new(tx, "temp", layout);
+        let mut scan = TableScan::new(tx, "temp", layout).unwrap();
         let data = vec![
             (
                 1,
@@ -351,7 +400,7 @@ mod tests {
         ];
 
         for (int, double, bytes, string, boolean, date, time, datetime, json) in data.clone() {
-            scan.insert();
+            scan.insert().unwrap();
             scan.set_int("int", int)
                 .set_double("double", double)
                 .set_bytes("bytes", bytes)
@@ -363,20 +412,20 @@ mod tests {
                 .set_json("json", &json);
         }
 
-        scan.before_first();
+        scan.before_first().unwrap();
 
         for (int, double, bytes, string, boolean, date, time, datetime, json) in data {
-            assert!(scan.next());
-            assert!(scan.get_int("int") == int);
-            assert!(scan.get_double("double") == double);
-            assert!(scan.get_bytes("bytes") == bytes);
-            assert!(scan.get_string("string") == string);
-            assert!(scan.get_boolean("boolean") == boolean);
-            assert!(scan.get_date("date") == date);
-            assert!(scan.get_time("time") == time);
-            assert!(scan.get_datetime("datetime") == datetime);
-            assert!(scan.get_json("json") == json);
+            assert!(scan.next().unwrap());
+            assert!(scan.get_int("int").unwrap() == int);
+            assert!(scan.get_double("double").unwrap() == double);
+            assert!(scan.get_bytes("bytes").unwrap() == bytes);
+            assert!(scan.get_string("string").unwrap() == string);
+            assert!(scan.get_boolean("boolean").unwrap() == boolean);
+            assert!(scan.get_date("date").unwrap() == date);
+            assert!(scan.get_time("time").unwrap() == time);
+            assert!(scan.get_datetime("datetime").unwrap() == datetime);
+            assert!(scan.get_json("json").unwrap() == json);
         }
-        assert!(!scan.next());
+        assert!(!scan.next().unwrap());
     }
 }

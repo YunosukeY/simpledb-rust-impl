@@ -29,26 +29,26 @@ impl Layout {
         &self.schema
     }
 
-    pub fn offset(&self, field_name: &str) -> &i32 {
-        self.offsets.get(field_name).unwrap()
+    pub fn offset(&self, field_name: &str) -> Option<&i32> {
+        self.offsets.get(field_name)
     }
 
     pub fn slot_size(&self) -> i32 {
         self.slot_size
     }
 
-    fn length_in_bytes(&self, field_name: &str) -> i32 {
-        let column_type = self.schema.column_type(field_name).unwrap();
+    fn length_in_bytes(&self, field_name: &str) -> Option<i32> {
+        let column_type = self.schema.column_type(field_name)?;
         match column_type {
-            ColumnType::Integer => INTEGER_BYTES,
-            ColumnType::Double => DOUBLE_BYTES,
-            ColumnType::VarBit => Page::max_bytes_len(self.schema.length(field_name).unwrap()),
-            ColumnType::VarChar => Page::max_str_len(self.schema.length(field_name).unwrap()),
-            ColumnType::Boolean => BOOL_BYTES,
-            ColumnType::Date => DATE_LEN,
-            ColumnType::Time => TIME_LEN,
-            ColumnType::DateTime => DATETIME_LEN,
-            ColumnType::Json => Page::max_json_len(self.schema.length(field_name).unwrap()),
+            ColumnType::Integer => Some(INTEGER_BYTES),
+            ColumnType::Double => Some(DOUBLE_BYTES),
+            ColumnType::VarBit => Some(Page::max_bytes_len(self.schema.length(field_name)?)),
+            ColumnType::VarChar => Some(Page::max_str_len(self.schema.length(field_name)?)),
+            ColumnType::Boolean => Some(BOOL_BYTES),
+            ColumnType::Date => Some(DATE_LEN),
+            ColumnType::Time => Some(TIME_LEN),
+            ColumnType::DateTime => Some(DATETIME_LEN),
+            ColumnType::Json => Some(Page::max_json_len(self.schema.length(field_name)?)),
         }
     }
 }
@@ -59,7 +59,7 @@ impl From<Schema> for Layout {
         let mut pos = BOOL_BYTES;
         for field_name in schema.fields() {
             layout.offsets.insert(field_name.clone(), pos);
-            pos += layout.length_in_bytes(field_name)
+            pos += layout.length_in_bytes(field_name).unwrap();
         }
         layout.slot_size = pos;
         layout
@@ -86,15 +86,15 @@ mod tests {
 
         let layout = Layout::from(schema);
 
-        assert_eq!(*layout.offset("int"), 1);
-        assert_eq!(*layout.offset("double"), 5);
-        assert_eq!(*layout.offset("bytes"), 13);
-        assert_eq!(*layout.offset("string"), 117);
-        assert_eq!(*layout.offset("boolean"), 521);
-        assert_eq!(*layout.offset("date"), 522);
-        assert_eq!(*layout.offset("time"), 528);
-        assert_eq!(*layout.offset("datetime"), 535);
-        assert_eq!(*layout.offset("json"), 550);
+        assert_eq!(*layout.offset("int").unwrap(), 1);
+        assert_eq!(*layout.offset("double").unwrap(), 5);
+        assert_eq!(*layout.offset("bytes").unwrap(), 13);
+        assert_eq!(*layout.offset("string").unwrap(), 117);
+        assert_eq!(*layout.offset("boolean").unwrap(), 521);
+        assert_eq!(*layout.offset("date").unwrap(), 522);
+        assert_eq!(*layout.offset("time").unwrap(), 528);
+        assert_eq!(*layout.offset("datetime").unwrap(), 535);
+        assert_eq!(*layout.offset("json").unwrap(), 550);
         assert_eq!(layout.slot_size(), 954);
     }
 }

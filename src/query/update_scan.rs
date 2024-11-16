@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 
-use crate::record::rid::Rid;
+use crate::{record::rid::Rid, util::Result};
 
 use super::{constant::Constant, scan::Scan};
 
 pub trait UpdateScan: Scan {
-    fn set_value(&mut self, field_name: &str, value: Constant) -> &mut Self;
+    fn set_value(&mut self, field_name: &str, value: Constant) -> Result<()>;
 
     fn set_int(&mut self, field_name: &str, value: i32) -> &mut Self;
 
@@ -29,11 +29,11 @@ pub trait UpdateScan: Scan {
 
     fn set_json(&mut self, field_name: &str, value: &serde_json::Value) -> &mut Self;
 
-    fn insert(&mut self);
+    fn insert(&mut self) -> Result<()>;
 
-    fn delete(&mut self);
+    fn delete(&mut self) -> Result<()>;
 
     fn get_rid(&self) -> Rid;
 
-    fn move_to_rid(&mut self, rid: Rid);
+    fn move_to_rid(&mut self, rid: Rid) -> Result<()>;
 }
