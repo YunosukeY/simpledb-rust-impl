@@ -119,11 +119,17 @@ impl FileManager {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use crate::server::simple_db::SimpleDB;
+
     use super::*;
 
     #[test]
     fn read() {
-        let mut fm = FileManager::new(PathBuf::from("testdata/file/file_manager/read"), 10);
+        let db = SimpleDB::new("testdata/file/file_manager/read", 10, 8, "templog");
+        let fm = Arc::as_ptr(&db.file_manager()) as *mut FileManager;
+        let fm = unsafe { &mut *fm };
         let mut page = Page::new(fm.block_size());
 
         let block = BlockId::new("testfile".to_string(), 1);
@@ -133,7 +139,9 @@ mod tests {
 
     #[test]
     fn write() {
-        let mut fm = FileManager::new(PathBuf::from("testdata/file/file_manager/write"), 10);
+        let db = SimpleDB::new("testdata/file/file_manager/write", 10, 8, "templog");
+        let fm = Arc::as_ptr(&db.file_manager()) as *mut FileManager;
+        let fm = unsafe { &mut *fm };
         let mut page = Page::new(fm.block_size());
 
         let block = BlockId::new("tempfile1".to_string(), 1);
@@ -148,7 +156,9 @@ mod tests {
 
     #[test]
     fn append() {
-        let mut fm = FileManager::new(PathBuf::from("testdata/file/file_manager/append"), 10);
+        let db = SimpleDB::new("testdata/file/file_manager/append", 10, 8, "templog");
+        let fm = Arc::as_ptr(&db.file_manager()) as *mut FileManager;
+        let fm = unsafe { &mut *fm };
 
         let block = fm.append("tempfile2").unwrap();
         assert_eq!(block, BlockId::new("tempfile2".to_string(), 0));

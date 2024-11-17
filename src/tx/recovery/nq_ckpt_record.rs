@@ -48,8 +48,7 @@ impl From<&NqCkptRecord> for Page {
         let bytes: Vec<u8> = record
             .tx_nums
             .iter()
-            .map(|t| t.to_be_bytes())
-            .flatten()
+            .flat_map(|t| t.to_be_bytes())
             .collect();
 
         let vpos = INTEGER_BYTES;

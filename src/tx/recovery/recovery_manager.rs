@@ -201,10 +201,12 @@ impl RecoveryManager {
             } else if rec.op() == NQCKPT && unfinished_txs.is_none() {
                 let rec = NqCkptRecord::from(Page::from(bytes));
                 unfinished_txs = Some(rec.tx_nums());
-            } else if rec.op() == START && unfinished_txs.is_some() {
-                unfinished_txs.as_mut().unwrap().remove(&rec.tx_num());
-                if unfinished_txs.as_ref().unwrap().is_empty() {
-                    return;
+            } else if rec.op() == START {
+                if let Some(unfinished_txs) = &mut unfinished_txs {
+                    unfinished_txs.remove(&rec.tx_num());
+                    if unfinished_txs.is_empty() {
+                        return;
+                    }
                 }
             } else if rec.op() == COMMIT || rec.op() == ROLLBACK {
                 finished_txs.push(rec.tx_num());

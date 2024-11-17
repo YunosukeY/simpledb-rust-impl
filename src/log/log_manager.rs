@@ -112,15 +112,15 @@ impl LogManager {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use super::*;
+    use crate::server::simple_db::SimpleDB;
+    use std::sync::Arc;
 
     #[test]
     fn test() {
-        let fm = FileManager::new(PathBuf::from("testdata/log/log_manager/test"), 20);
-        let fm = Arc::new(fm);
-        let mut lm = LogManager::new(fm, "tempfile".to_string());
+        let db = SimpleDB::new("testdata/log/log_manager/test", 20, 8, "tempfile");
+        let lm = Arc::as_ptr(&db.log_manager()) as *mut LogManager;
+        let lm = unsafe { &mut *lm };
         assert_eq!(
             std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),
             vec![0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // append new block

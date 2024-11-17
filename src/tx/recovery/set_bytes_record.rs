@@ -18,11 +18,11 @@ pub struct SetBytesRecord {
 }
 
 impl SetBytesRecord {
-    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: &[u8]) -> Self {
+    pub fn new(tx_num: i32, block: BlockId, offset: i32, old_value: Vec<u8>) -> Self {
         Self {
             tx_num,
             offset,
-            old_value: old_value.to_vec(),
+            old_value,
             block,
         }
     }
@@ -112,7 +112,8 @@ mod tests {
 
     #[test]
     fn test() {
-        let record = SetBytesRecord::new(1, BlockId::new("filename".to_string(), 2), 3, &[4, 5, 6]);
+        let record =
+            SetBytesRecord::new(1, BlockId::new("filename".to_string(), 2), 3, vec![4, 5, 6]);
 
         let record2 = SetBytesRecord::from(Page::from(&record));
 
@@ -121,7 +122,8 @@ mod tests {
 
     #[test]
     fn to_string() {
-        let record = SetBytesRecord::new(1, BlockId::new("filename".to_string(), 2), 3, &[4, 5, 6]);
+        let record =
+            SetBytesRecord::new(1, BlockId::new("filename".to_string(), 2), 3, vec![4, 5, 6]);
 
         assert_eq!(
             record.to_string(),

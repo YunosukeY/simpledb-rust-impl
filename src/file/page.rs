@@ -10,9 +10,9 @@ pub struct Page {
     pub(super) buf: Vec<u8>,
 }
 
-const DATE_LEN: i32 = INTEGER_BYTES + 2;
-const TIME_LEN: i32 = INTEGER_BYTES + 3;
-const DATETIME_LEN: i32 = SHORT_BYTES + 2 * INTEGER_BYTES + 5;
+pub const DATE_LEN: i32 = INTEGER_BYTES + 2;
+pub const TIME_LEN: i32 = INTEGER_BYTES + 3;
+pub const DATETIME_LEN: i32 = SHORT_BYTES + 2 * INTEGER_BYTES + 5;
 
 impl Page {
     pub fn new(size: i32) -> Page {
@@ -42,11 +42,11 @@ impl Page {
     pub fn bytes_len(bytes: &[u8]) -> i32 {
         bytes.len() as i32 + INTEGER_BYTES
     }
-    pub fn get_bytes(&self, offset: i32) -> &[u8] {
+    pub fn get_bytes(&self, offset: i32) -> Vec<u8> {
         let len = self.get_int(offset);
 
         let ofs = (offset + INTEGER_BYTES) as usize;
-        &self.buf[ofs..ofs + len as usize]
+        self.buf[ofs..ofs + len as usize].to_vec()
     }
     pub fn set_bytes(&mut self, offset: i32, bytes: &[u8]) {
         let len = bytes.len() as i32;
@@ -61,7 +61,7 @@ impl Page {
     }
     pub fn get_string(&self, offset: i32) -> String {
         let bytes = self.get_bytes(offset);
-        from_utf8(bytes).unwrap().to_string()
+        from_utf8(&bytes).unwrap().to_string()
     }
     pub fn set_string(&mut self, offset: i32, s: &str) {
         let bytes: &[u8] = s.as_bytes();
@@ -188,6 +188,16 @@ impl Page {
     pub fn set_json(&mut self, offset: i32, json: &Option<serde_json::Value>) {
         let s = json.clone().map_or("".to_string(), |j| j.to_string());
         self.set_string(offset, &s);
+    }
+
+    pub fn max_bytes_len(len: i32) -> i32 {
+        len + INTEGER_BYTES
+    }
+    pub fn max_str_len(len: i32) -> i32 {
+        Page::max_bytes_len(len * 4)
+    }
+    pub fn max_json_len(len: i32) -> i32 {
+        Page::max_str_len(len)
     }
 }
 
