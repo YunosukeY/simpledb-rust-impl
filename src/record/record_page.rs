@@ -262,8 +262,8 @@ impl<'a> RecordPage<'a> {
                         (*tx).set_json(&self.block, field_pos, &None, false)?;
                     },
                 };
-                slot += 1;
             }
+            slot += 1;
         }
         Ok(())
     }
