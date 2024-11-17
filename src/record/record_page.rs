@@ -9,7 +9,7 @@ use crate::{
     util::Result,
 };
 
-use super::layout::Layout;
+use super::layout::{Layout, IS_USED_FLAG_NAME};
 
 const EMPTY: bool = false;
 const USED: bool = true;
@@ -38,7 +38,11 @@ impl<'a> RecordPage<'a> {
     pub fn set_int(&mut self, slot: i32, field_name: &str, value: i32) -> Result<()> {
         let field_pos = self.field_pos(slot, field_name).ok_or("field not found")?;
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_int(&self.block, field_pos, value, true) }
+        unsafe {
+            (*tx).set_int(&self.block, field_pos, value, true)?;
+        }
+        self._set_null(slot, field_name, false)?;
+        Ok(())
     }
 
     pub fn get_double(&mut self, slot: i32, field_name: &str) -> Result<f64> {
@@ -49,7 +53,11 @@ impl<'a> RecordPage<'a> {
     pub fn set_double(&mut self, slot: i32, field_name: &str, value: f64) -> Result<()> {
         let field_pos = self.field_pos(slot, field_name).ok_or("field not found")?;
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_double(&self.block, field_pos, value, true) }
+        unsafe {
+            (*tx).set_double(&self.block, field_pos, value, true)?;
+        }
+        self._set_null(slot, field_name, false)?;
+        Ok(())
     }
 
     pub fn get_bytes(&mut self, slot: i32, field_name: &str) -> Result<Vec<u8>> {
@@ -65,7 +73,11 @@ impl<'a> RecordPage<'a> {
         }
 
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_bytes(&self.block, field_pos, value, true) }
+        unsafe {
+            (*tx).set_bytes(&self.block, field_pos, value, true)?;
+        }
+        self._set_null(slot, field_name, false)?;
+        Ok(())
     }
 
     pub fn get_string(&mut self, slot: i32, field_name: &str) -> Result<String> {
@@ -81,7 +93,11 @@ impl<'a> RecordPage<'a> {
         }
 
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_string(&self.block, field_pos, value, true) }
+        unsafe {
+            (*tx).set_string(&self.block, field_pos, value, true)?;
+        }
+        self._set_null(slot, field_name, false)?;
+        Ok(())
     }
 
     pub fn get_bool(&mut self, slot: i32, field_name: &str) -> Result<bool> {
@@ -92,7 +108,11 @@ impl<'a> RecordPage<'a> {
     pub fn set_bool(&mut self, slot: i32, field_name: &str, value: bool) -> Result<()> {
         let field_pos = self.field_pos(slot, field_name).ok_or("field not found")?;
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_bool(&self.block, field_pos, value, true) }
+        unsafe {
+            (*tx).set_bool(&self.block, field_pos, value, true)?;
+        }
+        self._set_null(slot, field_name, false)?;
+        Ok(())
     }
 
     pub fn get_date(&mut self, slot: i32, field_name: &str) -> Result<chrono::NaiveDate> {
@@ -109,7 +129,11 @@ impl<'a> RecordPage<'a> {
     ) -> Result<()> {
         let field_pos = self.field_pos(slot, field_name).ok_or("field not found")?;
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_date(&self.block, field_pos, &Some(value), true) }
+        unsafe {
+            (*tx).set_date(&self.block, field_pos, &Some(value), true)?;
+        }
+        self._set_null(slot, field_name, false)?;
+        Ok(())
     }
 
     pub fn get_time(&mut self, slot: i32, field_name: &str) -> Result<chrono::NaiveTime> {
@@ -126,7 +150,11 @@ impl<'a> RecordPage<'a> {
     ) -> Result<()> {
         let field_pos = self.field_pos(slot, field_name).ok_or("field not found")?;
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_time(&self.block, field_pos, &Some(value), true) }
+        unsafe {
+            (*tx).set_time(&self.block, field_pos, &Some(value), true)?;
+        }
+        self._set_null(slot, field_name, false)?;
+        Ok(())
     }
 
     pub fn get_datetime(
@@ -147,7 +175,11 @@ impl<'a> RecordPage<'a> {
     ) -> Result<()> {
         let field_pos = self.field_pos(slot, field_name).ok_or("field not found")?;
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_datetime(&self.block, field_pos, &Some(value), true) }
+        unsafe {
+            (*tx).set_datetime(&self.block, field_pos, &Some(value), true)?;
+        }
+        self._set_null(slot, field_name, false)?;
+        Ok(())
     }
 
     pub fn get_json(&mut self, slot: i32, field_name: &str) -> Result<serde_json::Value> {
@@ -169,11 +201,25 @@ impl<'a> RecordPage<'a> {
         }
 
         let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_json(&self.block, field_pos, &Some(value.clone()), true) }
+        unsafe {
+            (*tx).set_json(&self.block, field_pos, &Some(value.clone()), true)?;
+        }
+        self._set_null(slot, field_name, false)?;
+        Ok(())
+    }
+
+    pub fn is_null(&mut self, slot: i32, field_name: &str) -> Result<bool> {
+        self.get_flag(slot, field_name)
+    }
+    pub fn set_null(&mut self, slot: i32, field_name: &str) -> Result<()> {
+        self._set_null(slot, field_name, true)
+    }
+    fn _set_null(&mut self, slot: i32, field_name: &str, null: bool) -> Result<()> {
+        self.set_flag(slot, field_name, null)
     }
 
     pub fn delete(&mut self, slot: i32) -> Result<()> {
-        self.set_flag(slot, EMPTY)
+        self.set_is_used_flag(slot, EMPTY)
     }
 
     pub fn format(&mut self) -> Result<()> {
@@ -181,7 +227,7 @@ impl<'a> RecordPage<'a> {
         while self.is_valid_slot(slot) {
             let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
             unsafe {
-                (*tx).set_bool(&self.block, self.offset(slot), EMPTY, false)?;
+                (*tx).set_int(&self.block, self.offset(slot), 0, false)?;
             }
             let schema = self.layout.schema();
             for field_name in schema.fields() {
@@ -229,7 +275,7 @@ impl<'a> RecordPage<'a> {
     pub fn insert_after(&mut self, slot: i32) -> Result<i32> {
         let new_slot = self.search_after(slot, EMPTY)?;
         if new_slot >= 0 {
-            self.set_flag(new_slot, USED)?;
+            self.set_is_used_flag(new_slot, USED)?;
         }
         Ok(new_slot)
     }
@@ -242,21 +288,48 @@ impl<'a> RecordPage<'a> {
         Some(self.offset(slot) + self.layout.offset(field_name)?)
     }
 
-    fn set_flag(&mut self, slot: i32, flag: bool) -> Result<()> {
-        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-        unsafe { (*tx).set_bool(&self.block, self.offset(slot), flag, true) }
+    fn set_is_used_flag(&mut self, slot: i32, flag: bool) -> Result<()> {
+        self.set_flag(slot, IS_USED_FLAG_NAME, flag)
     }
 
     fn search_after(&mut self, slot: i32, flag: bool) -> Result<i32> {
         let mut next_slot = slot + 1;
         while self.is_valid_slot(next_slot) {
-            let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
-            if unsafe { (*tx).get_bool(&self.block, self.offset(next_slot))? == flag } {
+            if self.get_flag(next_slot, IS_USED_FLAG_NAME)? == flag {
                 return Ok(next_slot);
             }
             next_slot += 1;
         }
         Ok(-1)
+    }
+
+    pub fn get_flag(&mut self, slot: i32, flag_name: &str) -> Result<bool> {
+        let offset = self.offset(slot);
+        let null_bit_location = self
+            .layout
+            .flag_bit_location(flag_name)
+            .ok_or("flag not found")?;
+
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        let flag_bits = unsafe { (*tx).get_int(&self.block, offset)? };
+
+        Ok((flag_bits & (1 << null_bit_location)) != 0)
+    }
+    fn set_flag(&mut self, slot: i32, flag_name: &str, flag: bool) -> Result<()> {
+        let offset = self.offset(slot);
+        let flag_bit_location = self
+            .layout
+            .flag_bit_location(flag_name)
+            .ok_or("flag not found")?;
+
+        let tx = Arc::as_ptr(&self.tx) as *mut Transaction;
+        let mut flag_bits = unsafe { (*tx).get_int(&self.block, offset)? };
+        if flag {
+            flag_bits |= 1 << flag_bit_location;
+        } else {
+            flag_bits &= !(1 << flag_bit_location);
+        }
+        unsafe { (*tx).set_int(&self.block, offset, flag_bits, true) }
     }
 
     fn is_valid_slot(&self, slot: i32) -> bool {

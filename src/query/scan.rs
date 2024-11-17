@@ -29,6 +29,8 @@ pub trait Scan {
 
     fn get_value(&mut self, field_name: &str) -> Result<Constant>;
 
+    fn is_null(&mut self, field_name: &str) -> Result<bool>;
+
     fn has_field(&self, field_name: &str) -> bool;
 
     fn close(&self);

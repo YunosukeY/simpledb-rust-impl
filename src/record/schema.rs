@@ -39,6 +39,9 @@ impl Schema {
         column_type: ColumnType,
         length: i32,
     ) -> &mut Self {
+        if self.fields.len() == 31 {
+            return self;
+        }
         self.fields.push(fieldname.to_string());
         self.info
             .insert(fieldname.to_string(), FieldInfo::new(column_type, length));

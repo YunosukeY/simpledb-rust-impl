@@ -29,6 +29,8 @@ pub trait UpdateScan: Scan {
 
     fn set_json(&mut self, field_name: &str, value: &serde_json::Value) -> &mut Self;
 
+    fn set_null(&mut self, field_name: &str) -> &mut Self;
+
     fn insert(&mut self) -> Result<()>;
 
     fn delete(&mut self) -> Result<()>;

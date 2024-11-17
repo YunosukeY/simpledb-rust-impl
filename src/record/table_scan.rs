@@ -140,6 +140,13 @@ impl<'a> Scan for TableScan<'a> {
         }
     }
 
+    fn is_null(&mut self, field_name: &str) -> Result<bool> {
+        self.rp
+            .as_mut()
+            .unwrap()
+            .is_null(self.current_slot, field_name)
+    }
+
     fn has_field(&self, field_name: &str) -> bool {
         let layout = Arc::as_ptr(&self.layout);
         unsafe { (*layout).schema().has_field(field_name) }
@@ -268,6 +275,15 @@ impl<'a> UpdateScan for TableScan<'a> {
             .as_mut()
             .unwrap()
             .set_json(self.current_slot, field_name, value);
+        self
+    }
+
+    fn set_null(&mut self, field_name: &str) -> &mut Self {
+        let _ = self
+            .rp
+            .as_mut()
+            .unwrap()
+            .set_null(self.current_slot, field_name);
         self
     }
 

@@ -10,17 +10,26 @@ use crate::{
 
 use super::schema::Schema;
 
+pub const IS_USED_FLAG_NAME: &str = "SECRET_INTERNALS_IS_USED_FLAG";
+
 pub struct Layout {
     schema: Schema,
     offsets: HashMap<String, i32>,
+    flag_bit_location: HashMap<String, i32>,
     slot_size: i32,
 }
 
 impl Layout {
-    pub fn new(schema: Schema, offsets: HashMap<String, i32>, slot_size: i32) -> Self {
+    pub fn new(
+        schema: Schema,
+        offsets: HashMap<String, i32>,
+        flag_bit_location: HashMap<String, i32>,
+        slot_size: i32,
+    ) -> Self {
         Self {
             schema,
             offsets,
+            flag_bit_location,
             slot_size,
         }
     }
@@ -31,6 +40,10 @@ impl Layout {
 
     pub fn offset(&self, field_name: &str) -> Option<&i32> {
         self.offsets.get(field_name)
+    }
+
+    pub fn flag_bit_location(&self, field_name: &str) -> Option<&i32> {
+        self.flag_bit_location.get(field_name)
     }
 
     pub fn slot_size(&self) -> i32 {
@@ -55,11 +68,17 @@ impl Layout {
 
 impl From<Schema> for Layout {
     fn from(schema: Schema) -> Self {
-        let mut layout = Layout::new(schema.clone(), HashMap::new(), 0);
-        let mut pos = BOOL_BYTES;
+        let mut flag_bit_location: HashMap<String, i32> = HashMap::new();
+        flag_bit_location.insert(IS_USED_FLAG_NAME.to_string(), 0);
+        let mut layout = Layout::new(schema.clone(), HashMap::new(), flag_bit_location, 0);
+        let mut pos = INTEGER_BYTES;
+        let mut loc = 1;
         for field_name in schema.fields() {
             layout.offsets.insert(field_name.clone(), pos);
             pos += layout.length_in_bytes(field_name).unwrap();
+
+            layout.flag_bit_location.insert(field_name.clone(), loc);
+            loc += 1;
         }
         layout.slot_size = pos;
         layout
@@ -86,15 +105,15 @@ mod tests {
 
         let layout = Layout::from(schema);
 
-        assert_eq!(*layout.offset("int").unwrap(), 1);
-        assert_eq!(*layout.offset("double").unwrap(), 5);
-        assert_eq!(*layout.offset("bytes").unwrap(), 13);
-        assert_eq!(*layout.offset("string").unwrap(), 117);
-        assert_eq!(*layout.offset("boolean").unwrap(), 521);
-        assert_eq!(*layout.offset("date").unwrap(), 522);
-        assert_eq!(*layout.offset("time").unwrap(), 528);
-        assert_eq!(*layout.offset("datetime").unwrap(), 535);
-        assert_eq!(*layout.offset("json").unwrap(), 550);
-        assert_eq!(layout.slot_size(), 954);
+        assert_eq!(*layout.offset("int").unwrap(), 4);
+        assert_eq!(*layout.offset("double").unwrap(), 8);
+        assert_eq!(*layout.offset("bytes").unwrap(), 16);
+        assert_eq!(*layout.offset("string").unwrap(), 120);
+        assert_eq!(*layout.offset("boolean").unwrap(), 524);
+        assert_eq!(*layout.offset("date").unwrap(), 525);
+        assert_eq!(*layout.offset("time").unwrap(), 531);
+        assert_eq!(*layout.offset("datetime").unwrap(), 538);
+        assert_eq!(*layout.offset("json").unwrap(), 553);
+        assert_eq!(layout.slot_size(), 957);
     }
 }
