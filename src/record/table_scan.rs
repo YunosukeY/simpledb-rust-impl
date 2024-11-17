@@ -21,8 +21,7 @@ pub struct TableScan<'a> {
 }
 
 impl<'a> TableScan<'a> {
-    pub fn new(tx: Transaction<'a>, table_name: &str, layout: Layout) -> Result<Self> {
-        let tx = Arc::new(tx);
+    pub fn new(tx: Arc<Transaction<'a>>, table_name: &str, layout: Layout) -> Result<Self> {
         let layout = Arc::new(layout);
         let mut scan = Self {
             tx,
@@ -366,8 +365,8 @@ mod tests {
 
     #[test]
     fn test() {
-        let db = SimpleDB::new("testdata/record/table_scan/test", 256, 8, "templog");
-        let tx = db.new_tx();
+        let db = SimpleDB::_new("testdata/record/table_scan/test", 256, 8, "templog");
+        let tx = Arc::new(db.new_tx());
         let mut schema = Schema::new();
         schema
             .add_int_field("int")
