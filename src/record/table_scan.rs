@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let db = SimpleDB::new("testdata/record/table_scan/test", 4096, 8, "templog");
+        let db = SimpleDB::new("testdata/record/table_scan/test", 256, 8, "templog");
         let tx = Arc::new(db.new_tx());
         let mut schema = Schema::new();
         schema

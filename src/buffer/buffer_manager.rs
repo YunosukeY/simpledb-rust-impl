@@ -66,6 +66,8 @@ impl BufferManager {
         if !buffer.is_pinned() {
             self.num_available += 1;
             self.unpinned_positions.insert(buf_idx);
+            self.existing_positions
+                .remove(buffer.block().as_ref().unwrap());
             self.m.notify_all();
         }
     }
