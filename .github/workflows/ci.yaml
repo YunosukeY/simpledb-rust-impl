@@ -10,23 +10,23 @@ jobs:
   fmt:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: cargo fmt --check
   clippy:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: cargo clippy --all-targets
   check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: cargo check --all-targets
   test:
     runs-on: ubuntu-24.04
     # https://github.com/taiki-e/cargo-llvm-cov#continuous-integration
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
