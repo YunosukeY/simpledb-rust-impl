@@ -127,8 +127,8 @@ mod tests {
 
     #[test]
     fn read() {
-        let db = SimpleDB::new("testdata/file/file_manager/read", 10, 8, "templog");
-        let fm = Arc::as_ptr(&db.file_manager()) as *mut FileManager;
+        let db = SimpleDB::_new("testdata/file/file_manager/read", 10, 8, "templog");
+        let fm = Arc::as_ptr(&db._file_manager()) as *mut FileManager;
         let fm = unsafe { &mut *fm };
         let mut page = Page::new(fm.block_size());
 
@@ -139,8 +139,8 @@ mod tests {
 
     #[test]
     fn write() {
-        let db = SimpleDB::new("testdata/file/file_manager/write", 10, 8, "templog");
-        let fm = Arc::as_ptr(&db.file_manager()) as *mut FileManager;
+        let db = SimpleDB::_new("testdata/file/file_manager/write", 10, 8, "templog");
+        let fm = Arc::as_ptr(&db._file_manager()) as *mut FileManager;
         let fm = unsafe { &mut *fm };
         let mut page = Page::new(fm.block_size());
 
@@ -156,8 +156,8 @@ mod tests {
 
     #[test]
     fn append() {
-        let db = SimpleDB::new("testdata/file/file_manager/append", 10, 8, "templog");
-        let fm = Arc::as_ptr(&db.file_manager()) as *mut FileManager;
+        let db = SimpleDB::_new("testdata/file/file_manager/append", 10, 8, "templog");
+        let fm = Arc::as_ptr(&db._file_manager()) as *mut FileManager;
         let fm = unsafe { &mut *fm };
 
         let block = fm.append("tempfile2").unwrap();
