@@ -12,6 +12,7 @@ use super::schema::Schema;
 
 pub const IS_USED_FLAG_NAME: &str = "SECRET_INTERNALS_IS_USED_FLAG";
 
+#[derive(Clone)]
 pub struct Layout {
     schema: Schema,
     offsets: HashMap<String, i32>,
