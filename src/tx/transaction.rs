@@ -145,14 +145,14 @@ impl<'a> Transaction<'a> {
         TRANSACTIONS.lock().unwrap().retain(|&x| x != self.tx_num);
     }
 
-    pub fn recover(mut self) {
+    pub fn recover(&mut self) {
         let bm = Arc::as_ptr(&self.bm) as *mut BufferManager;
         unsafe {
             (*bm).flush_all(self.tx_num).unwrap();
         }
         let rm = &mut self.rm as *mut RecoveryManager;
         unsafe {
-            (*rm).recover(&mut self);
+            (*rm).recover(self);
         }
         self.cm.release();
         self.my_buffers.unpin_all();
@@ -406,7 +406,7 @@ mod tests {
 
         #[test]
         fn set_and_get() {
-            let db = SimpleDB::new("testdata/tx/transaction/int/set_and_get", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/int/set_and_get", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -418,7 +418,7 @@ mod tests {
 
         #[test]
         fn rollback() {
-            let db = SimpleDB::new("testdata/tx/transaction/int/rollback", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/int/rollback", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -438,7 +438,7 @@ mod tests {
 
         #[test]
         fn recover() {
-            let db = SimpleDB::new("testdata/tx/transaction/int/recover", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/int/recover", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -452,7 +452,7 @@ mod tests {
             tx.unpin(&block);
             tx.cm.release();
 
-            let tx = db.new_tx();
+            let mut tx = db.new_tx();
             tx.recover();
 
             let mut tx = db.new_tx();
@@ -466,7 +466,7 @@ mod tests {
 
         #[test]
         fn set_and_get() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/bytes/set_and_get",
                 400,
                 8,
@@ -483,7 +483,7 @@ mod tests {
 
         #[test]
         fn rollback() {
-            let db = SimpleDB::new("testdata/tx/transaction/bytes/rollback", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/bytes/rollback", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -503,7 +503,7 @@ mod tests {
 
         #[test]
         fn recover() {
-            let db = SimpleDB::new("testdata/tx/transaction/bytes/recover", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/bytes/recover", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -517,7 +517,7 @@ mod tests {
             tx.unpin(&block);
             tx.cm.release();
 
-            let tx = db.new_tx();
+            let mut tx = db.new_tx();
             tx.recover();
 
             let mut tx = db.new_tx();
@@ -531,7 +531,7 @@ mod tests {
 
         #[test]
         fn set_and_get() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/string/set_and_get",
                 400,
                 8,
@@ -548,7 +548,7 @@ mod tests {
 
         #[test]
         fn rollback() {
-            let db = SimpleDB::new("testdata/tx/transaction/string/rollback", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/string/rollback", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -568,7 +568,7 @@ mod tests {
 
         #[test]
         fn recover() {
-            let db = SimpleDB::new("testdata/tx/transaction/string/recover", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/string/recover", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -582,7 +582,7 @@ mod tests {
             tx.unpin(&block);
             tx.cm.release();
 
-            let tx = db.new_tx();
+            let mut tx = db.new_tx();
             tx.recover();
 
             let mut tx = db.new_tx();
@@ -596,7 +596,7 @@ mod tests {
 
         #[test]
         fn set_and_get() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/bool/set_and_get",
                 400,
                 8,
@@ -613,7 +613,7 @@ mod tests {
 
         #[test]
         fn rollback() {
-            let db = SimpleDB::new("testdata/tx/transaction/bool/rollback", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/bool/rollback", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -633,7 +633,7 @@ mod tests {
 
         #[test]
         fn recover() {
-            let db = SimpleDB::new("testdata/tx/transaction/bool/recover", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/bool/recover", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -647,7 +647,7 @@ mod tests {
             tx.unpin(&block);
             tx.cm.release();
 
-            let tx = db.new_tx();
+            let mut tx = db.new_tx();
             tx.recover();
 
             let mut tx = db.new_tx();
@@ -661,7 +661,7 @@ mod tests {
 
         #[test]
         fn set_and_get() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/double/set_and_get",
                 400,
                 8,
@@ -678,7 +678,7 @@ mod tests {
 
         #[test]
         fn rollback() {
-            let db = SimpleDB::new("testdata/tx/transaction/double/rollback", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/double/rollback", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -698,7 +698,7 @@ mod tests {
 
         #[test]
         fn recover() {
-            let db = SimpleDB::new("testdata/tx/transaction/double/recover", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/double/recover", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -712,7 +712,7 @@ mod tests {
             tx.unpin(&block);
             tx.cm.release();
 
-            let tx = db.new_tx();
+            let mut tx = db.new_tx();
             tx.recover();
 
             let mut tx = db.new_tx();
@@ -726,7 +726,7 @@ mod tests {
 
         #[test]
         fn set_and_get() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/date/set_and_get",
                 400,
                 8,
@@ -752,7 +752,7 @@ mod tests {
 
         #[test]
         fn rollback() {
-            let db = SimpleDB::new("testdata/tx/transaction/date/rollback", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/date/rollback", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
             let date1 = chrono::NaiveDate::from_ymd_opt(2021, 1, 1);
             let date2 = chrono::NaiveDate::from_ymd_opt(2021, 12, 31);
@@ -774,7 +774,7 @@ mod tests {
 
         #[test]
         fn recover() {
-            let db = SimpleDB::new("testdata/tx/transaction/date/recover", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/date/recover", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
             let date1 = chrono::NaiveDate::from_ymd_opt(2021, 1, 1);
             let date2 = chrono::NaiveDate::from_ymd_opt(2021, 12, 31);
@@ -790,7 +790,7 @@ mod tests {
             tx.unpin(&block);
             tx.cm.release();
 
-            let tx = db.new_tx();
+            let mut tx = db.new_tx();
             tx.recover();
 
             let mut tx = db.new_tx();
@@ -804,7 +804,7 @@ mod tests {
 
         #[test]
         fn set_and_get() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/time/set_and_get",
                 400,
                 8,
@@ -830,7 +830,7 @@ mod tests {
 
         #[test]
         fn rollback() {
-            let db = SimpleDB::new("testdata/tx/transaction/time/rollback", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/time/rollback", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
             let time1 = chrono::NaiveTime::from_hms_opt(1, 2, 3);
             let time2 = chrono::NaiveTime::from_hms_opt(4, 5, 6);
@@ -852,7 +852,7 @@ mod tests {
 
         #[test]
         fn recover() {
-            let db = SimpleDB::new("testdata/tx/transaction/time/recover", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/time/recover", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
             let time1 = chrono::NaiveTime::from_hms_opt(1, 2, 3);
             let time2 = chrono::NaiveTime::from_hms_opt(4, 5, 6);
@@ -868,7 +868,7 @@ mod tests {
             tx.unpin(&block);
             tx.cm.release();
 
-            let tx = db.new_tx();
+            let mut tx = db.new_tx();
             tx.recover();
 
             let mut tx = db.new_tx();
@@ -882,7 +882,7 @@ mod tests {
 
         #[test]
         fn set_and_get() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/datetime/set_and_get",
                 400,
                 8,
@@ -900,7 +900,7 @@ mod tests {
 
         #[test]
         fn rollback() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/datetime/rollback",
                 400,
                 8,
@@ -927,7 +927,7 @@ mod tests {
 
         #[test]
         fn recover() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/datetime/recover",
                 400,
                 8,
@@ -948,7 +948,7 @@ mod tests {
             tx.unpin(&block);
             tx.cm.release();
 
-            let tx = db.new_tx();
+            let mut tx = db.new_tx();
             tx.recover();
 
             let mut tx = db.new_tx();
@@ -962,7 +962,7 @@ mod tests {
 
         #[test]
         fn set_and_get() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/json/set_and_get",
                 400,
                 8,
@@ -983,7 +983,7 @@ mod tests {
 
         #[test]
         fn rollback() {
-            let db = SimpleDB::new("testdata/tx/transaction/json/rollback", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/json/rollback", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -1008,7 +1008,7 @@ mod tests {
 
         #[test]
         fn recover() {
-            let db = SimpleDB::new("testdata/tx/transaction/json/recover", 400, 8, "templog");
+            let db = SimpleDB::_new("testdata/tx/transaction/json/recover", 400, 8, "templog");
             let block = BlockId::new("tempfile".to_string(), 0);
 
             let mut tx = db.new_tx();
@@ -1024,7 +1024,7 @@ mod tests {
             tx.unpin(&block);
             tx.cm.release();
 
-            let tx = db.new_tx();
+            let mut tx = db.new_tx();
             tx.recover();
 
             let mut tx = db.new_tx();
@@ -1042,7 +1042,7 @@ mod tests {
 
         #[test]
         fn error_if_blocked() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/checkpoint/error_if_blocked",
                 400,
                 8,
@@ -1050,14 +1050,14 @@ mod tests {
             );
 
             let tx = db.new_tx();
-            let res = Transaction::checkpoint(db.buffer_manager(), db.log_manager());
+            let res = Transaction::checkpoint(db._buffer_manager(), db._log_manager());
 
             assert!(res.is_err());
         }
 
         #[test]
         fn ok_if_not_blocked() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/checkpoint/ok_if_not_blocked",
                 400,
                 8,
@@ -1068,7 +1068,7 @@ mod tests {
             let t = {
                 let db = db.clone();
                 thread::spawn(move || {
-                    let res = Transaction::checkpoint(db.buffer_manager(), db.log_manager());
+                    let res = Transaction::checkpoint(db._buffer_manager(), db._log_manager());
                     assert!(res.is_ok());
                 })
             };
@@ -1078,7 +1078,7 @@ mod tests {
 
         #[test]
         fn new_tx_is_kept_waiting() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/checkpoint/new_tx_is_kept_waiting",
                 400,
                 8,
@@ -1089,7 +1089,7 @@ mod tests {
             let t1 = {
                 let db = db.clone();
                 thread::spawn(move || {
-                    let res = Transaction::checkpoint(db.buffer_manager(), db.log_manager());
+                    let res = Transaction::checkpoint(db._buffer_manager(), db._log_manager());
                     assert!(res.is_ok());
                 })
             };
@@ -1113,7 +1113,7 @@ mod tests {
 
         #[test]
         fn not_blocked() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/nq_ckpt/not_blocked",
                 400,
                 8,
@@ -1121,14 +1121,14 @@ mod tests {
             );
 
             let tx = db.new_tx();
-            let res = Transaction::nq_ckpt(db.buffer_manager(), db.log_manager());
+            let res = Transaction::nq_ckpt(db._buffer_manager(), db._log_manager());
 
             assert!(res.is_ok());
         }
 
         #[test]
         fn new_tx_is_kept_waiting() {
-            let db = SimpleDB::new(
+            let db = SimpleDB::_new(
                 "testdata/tx/transaction/nq_ckpt/new_tx_is_kept_waiting",
                 400,
                 8,
@@ -1139,7 +1139,7 @@ mod tests {
             let t1 = {
                 let db = db.clone();
                 thread::spawn(move || {
-                    let res = Transaction::nq_ckpt(db.buffer_manager(), db.log_manager());
+                    let res = Transaction::nq_ckpt(db._buffer_manager(), db._log_manager());
                     assert!(res.is_ok());
                 })
             };
