@@ -151,13 +151,13 @@ mod tests {
         )
         .unwrap();
 
-        let db = SimpleDB::new(
+        let db = SimpleDB::_new(
             "testdata/buffer/buffer_manager/pin_and_unpin",
             10,
             3,
             "templog",
         );
-        let bm = Arc::as_ptr(&db.buffer_manager()) as *mut BufferManager;
+        let bm = Arc::as_ptr(&db._buffer_manager()) as *mut BufferManager;
         let bm = unsafe { &mut *bm };
         assert_eq!(bm.available(), 3);
 
@@ -212,13 +212,13 @@ mod tests {
         )
         .unwrap();
 
-        let db = SimpleDB::new(
+        let db = SimpleDB::_new(
             "testdata/buffer/buffer_manager/modify_and_flush",
             10,
             3,
             "templog",
         );
-        let bm = Arc::as_ptr(&db.buffer_manager()) as *mut BufferManager;
+        let bm = Arc::as_ptr(&db._buffer_manager()) as *mut BufferManager;
         let bm = unsafe { &mut *bm };
 
         // 0: modify and set_modified

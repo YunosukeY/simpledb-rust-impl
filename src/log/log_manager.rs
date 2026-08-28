@@ -118,8 +118,8 @@ mod tests {
 
     #[test]
     fn test() {
-        let db = SimpleDB::new("testdata/log/log_manager/test", 20, 8, "tempfile");
-        let lm = Arc::as_ptr(&db.log_manager()) as *mut LogManager;
+        let db = SimpleDB::_new("testdata/log/log_manager/test", 20, 8, "tempfile");
+        let lm = Arc::as_ptr(&db._log_manager()) as *mut LogManager;
         let lm = unsafe { &mut *lm };
         assert_eq!(
             std::fs::read("testdata/log/log_manager/test/tempfile").unwrap(),

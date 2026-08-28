@@ -1,6 +1,8 @@
 mod buffer;
 mod file;
+mod index;
 mod log;
+mod metadata;
 mod query;
 mod record;
 mod server;
