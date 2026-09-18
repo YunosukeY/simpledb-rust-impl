@@ -8,22 +8,22 @@ on:
       - '*'
 jobs:
   fmt:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - run: cargo fmt --check
   clippy:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - run: cargo clippy --all-targets
   check:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - run: cargo check --all-targets
   test:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # https://github.com/taiki-e/cargo-llvm-cov#continuous-integration
     steps:
       - uses: actions/checkout@v7
